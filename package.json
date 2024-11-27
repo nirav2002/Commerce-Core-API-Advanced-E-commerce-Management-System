@@ -1,0 +1,22 @@
+{
+  "name": "graphql-practice-project",
+  "version": "1.0.0",
+  "description": "Nirav's GraphQL Practice Project",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon --exec \"npx babel-node\" --ext js,graphql src/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Nirav Bhatt",
+  "license": "ISC",
+  "dependencies": {
+    "babel-cli": "^6.26.0",
+    "babel-plugin-transform-object-rest-spread": "^6.26.0",
+    "babel-preset-env": "^1.7.0",
+    "graphql-yoga": "^1.14.10",
+    "uuid": "^3.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.7"
+  }
+}
