@@ -3,7 +3,7 @@ import uuidv4 from "uuid/v4";
 
 //Demo Product Data
 
-const products = [
+let products = [
   {
     id: "1",
     name: "Wireless Mouse",
@@ -57,36 +57,32 @@ const products = [
 
 //Demo Categories data
 
-const categories = [
+let categories = [
   {
     id: "1",
     name: "Electronics",
     description: "Devices and gadgets for everyday use",
-    products: ["1", "5"],
   },
   {
     id: "2",
     name: "Fitness",
     description: "Gear and equipment for staying fit",
-    products: ["2", "6"],
   },
   {
     id: "3",
     name: "Kitchen",
     description: "Essential tools and accessories for your kitchen",
-    products: ["3", "7"],
   },
   {
     id: "4",
     name: "Furniture",
-    description: "Comfortable and stlyish furniture for home or office",
-    products: ["4"],
+    description: "Comfortable and stylish furniture for home or office",
   },
 ];
 
 //Demo Users data
 
-const users = [
+let users = [
   {
     id: "1",
     name: "Alice Johnson",
@@ -114,7 +110,7 @@ const users = [
 
 //Demo Orders data
 
-const orders = [
+let orders = [
   {
     id: "1",
     totalAmount: 25.99,
@@ -200,7 +196,7 @@ const orders = [
 
 //Demo Reviews data
 
-const reviews = [
+let reviews = [
   {
     id: "1",
     productID: "1",
@@ -260,7 +256,7 @@ const reviews = [
 ];
 
 //Demo Companies data
-const companies = [
+let companies = [
   {
     id: "1",
     name: "TechGear Inc.",
@@ -306,11 +302,22 @@ const typeDefs = `
 
     type Mutation {
         createProduct(data: CreateProductInput!): Product!
+        deleteProduct(id: ID!): Product!
+
         createCategory(data: CreateCategoryInput!): Category!
+        deleteCategory(id: ID!): Category!
+
         createUser(data: CreateUserInput!): User!
+        deleteUser(id: ID!): User!
+
         createOrder(data: CreateOrderInput!): Order!
+        deleteOrder(id: ID!): Order!
+
         createReview(data: CreateReviewInput!): Review!
+        deleteReview(id: ID!): Review!
+
         createCompany(data: CreateCompanyInput!): Company!
+        deleteCompany(id: ID!): Company!
     }
     
     type Product {
@@ -327,7 +334,6 @@ const typeDefs = `
         id: ID!
         name: String!
         description: String
-        products: [Product!]!
     }
 
     type User {
@@ -451,6 +457,33 @@ const resolvers = {
       products.push(product);
       return product;
     },
+    deleteProduct(parent, args, ctx, info) {
+      //Find the index of the product to be deleted
+      const productIndex = products.findIndex((product) => {
+        return product.id === args.id;
+      });
+
+      //If product not found
+      if (productIndex === -1) {
+        throw new Error("Product not found");
+      }
+
+      //Remove the product from the products array and store it
+      const deletedProduct = products.splice(productIndex, 1); //An array
+
+      //Remove all orders associated with the product
+      orders = orders.filter((order) => {
+        return order.productID !== args.id;
+      });
+
+      //Remove all reviews associated with the product
+      reviews = reviews.filter((review) => {
+        return review.productID !== args.id;
+      });
+
+      return deletedProduct[0];
+    },
+
     createCategory(parent, args, ctx, info) {
       //Validate if the product IDS provided through args exist in the products
       const productExists = args.data.products.filter(
@@ -483,6 +516,46 @@ const resolvers = {
 
       return category;
     },
+    deleteCategory(parent, args, ctx, info) {
+      //Find the category index
+      const categoryIndex = categories.findIndex((category) => {
+        return category.id === args.id;
+      });
+
+      //If category not found
+      if (categoryIndex === -1) {
+        throw new Error("Category not found");
+      }
+
+      //Remove the category
+      const deletedCategory = categories.splice(categoryIndex, 1); //An array
+
+      //linkedProducts is an array that contains the products that are linked to the category being deleted
+      const linkedProducts = products.filter((product) => {
+        return product.categoryID === args.id;
+      });
+
+      //Find and remove all products linked to the category
+      products = products.filter((product) => {
+        product.categoryID !== args.id;
+      });
+
+      //Remove all orders and reviews associated with the deleted product
+      orders = orders.filter((order) => {
+        !linkedProducts.some((product) => {
+          return product.id === order.productID;
+        });
+      });
+
+      reviews = reviews.filter((review) => {
+        !linkedProducts.some((product) => {
+          return product.id === review.productID;
+        });
+      });
+
+      return deletedCategory[0];
+    },
+
     createUser(parent, args, ctx, info) {
       //To check if the email entered is unique or not
       const emailExists = users.some((user) => {
@@ -505,6 +578,32 @@ const resolvers = {
 
       return user;
     },
+    deleteUser(parent, args, ctx, info) {
+      //Validate if the user exists
+      const userIndex = users.findIndex((user) => {
+        return user.id === args.id;
+      });
+
+      //If user not found
+      if (userIndex === -1) {
+        throw new Error("User not found");
+      }
+
+      //Remove the user
+      const deletedUser = users.splice(userIndex, 1); //An array
+
+      //Remove all orders and reviews created by the user
+      orders = orders.filter((order) => {
+        return order.userID !== args.id;
+      });
+
+      reviews = reviews.filter((review) => {
+        return review.userID !== args.id;
+      });
+
+      return deletedUser[0];
+    },
+
     createOrder(parent, args, ctx, info) {
       //Validate if the user ID provided through args exists or not in the users
       const userExists = users.some((user) => {
@@ -551,6 +650,23 @@ const resolvers = {
 
       return order;
     },
+    deleteOrder(parent, args, ctx, info) {
+      //Validate if the order exists
+      const orderIndex = orders.findIndex((order) => {
+        return order.id === args.id;
+      });
+
+      //If order is not found
+      if (orderIndex === -1) {
+        throw new Error("Order not found");
+      }
+
+      //Remove the order
+      const deletedOrder = orders.splice(orderIndex, 1); //An array
+
+      return deletedOrder[0];
+    },
+
     createReview(parent, args, ctx, info) {
       //Validate product ID
       const productExists = products.find((product) => {
@@ -589,6 +705,33 @@ const resolvers = {
 
       return review;
     },
+    deleteReview(parent, args, ctx, info) {
+      //Validate if the review exists
+      const reviewIndex = reviews.findIndex((review) => {
+        return review.id === args.id;
+      });
+
+      //If review not found
+      if (reviewIndex === -1) {
+        throw new Error("Review not found");
+      }
+
+      //Remove the review
+      const deletedReview = reviews.splice(reviewIndex, 1); //An array
+
+      //Clean up user's reviews
+      users = users.map((user) => {
+        return {
+          ...user,
+          reviews: user.reviews
+            ? user.reviews.filter((review) => review.id !== args.id)
+            : [],
+        };
+      });
+
+      return deletedReview[0];
+    },
+
     createCompany(parent, args, ctx, info) {
       //Validate that the company name given through the args does not actually exist
       const companyExists = companies.some((company) => {
@@ -612,6 +755,27 @@ const resolvers = {
 
       return company;
     },
+    deleteCompany(parent, args, ctx, info) {
+      //Validate if the company exists
+      const companyIndex = companies.findIndex((company) => {
+        return company.id === args.id;
+      });
+
+      //If company does not exist
+      if (companyIndex === -1) {
+        throw new Error("Company not found");
+      }
+
+      //Remove the company
+      const deletedCompany = companies.splice(companyIndex, 1); //An array
+
+      //Clean up related orders
+      orders = orders.filter((order) => {
+        return order.companyID !== args.id;
+      });
+
+      return deletedCompany[0];
+    },
   },
 
   Product: {
@@ -632,14 +796,6 @@ const resolvers = {
       });
     },
   },
-  Category: {
-    products(parent, args, ctx, info) {
-      return parent.products.map((productID) =>
-        products.find((product) => product.id === productID)
-      );
-    },
-  },
-
   Order: {
     user(parent, args, ctx, info) {
       return users.find((user) => {
