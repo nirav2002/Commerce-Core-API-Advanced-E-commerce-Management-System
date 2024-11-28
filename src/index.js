@@ -303,21 +303,27 @@ const typeDefs = `
     type Mutation {
         createProduct(data: CreateProductInput!): Product!
         deleteProduct(id: ID!): Product!
+        updateProduct(id: ID!, data: UpdateProductInput!): Product!
 
         createCategory(data: CreateCategoryInput!): Category!
         deleteCategory(id: ID!): Category!
+        updateCategory(id: ID!, data: UpdateCategoryInput!): Category!
 
         createUser(data: CreateUserInput!): User!
         deleteUser(id: ID!): User!
+        updateUser(id: ID!, data: UpdateUserInput!): User!
 
         createOrder(data: CreateOrderInput!): Order!
         deleteOrder(id: ID!): Order!
+        updateOrder(id: ID!, data: UpdateOrderInput!): Order!
 
         createReview(data: CreateReviewInput!): Review!
         deleteReview(id: ID!): Review!
+        updateReview(id: ID!, data: UpdateReviewInput!): Review!
 
         createCompany(data: CreateCompanyInput!): Company!
         deleteCompany(id: ID!): Company!
+        updateCompany(id: ID!, data: UpdateCompanyInput!): Company!
     }
     
     type Product {
@@ -376,6 +382,13 @@ const typeDefs = `
         categoryID: ID!
         inStock: Boolean!
     }
+    
+    input UpdateProductInput {
+        name: String
+        price: Float
+        inStock: Boolean
+        categoryID: ID
+    }
 
     input CreateCategoryInput {
         name: String!
@@ -383,8 +396,19 @@ const typeDefs = `
         products: [ID!]
     }
     
+    input UpdateCategoryInput {
+        name: String
+        description: String
+    }
+
     input CreateUserInput {
         name: String!
+        email: String
+        age: Int
+    }
+    
+    input UpdateUserInput {
+        name: String
         email: String
         age: Int
     }
@@ -397,6 +421,15 @@ const typeDefs = `
         productID: ID!
         companyID: ID!
     }
+    
+    input UpdateOrderInput {
+        totalAmount: Float
+        status: String
+        orderDate: String
+        userID: ID
+        productID: ID
+        companyID: ID
+    }
 
     input CreateReviewInput {
         productID: ID!
@@ -404,11 +437,24 @@ const typeDefs = `
         rating: Float!
         comment: String!
     }
+    
+    input UpdateReviewInput {
+        productID: ID
+        userID: ID
+        rating: Float
+        comment: String
+    }
 
     input CreateCompanyInput {
         name: String!
         location: String!
         industry: String!
+    }
+    
+    input UpdateCompanyInput {
+        name: String
+        location: String
+        industry: String
     }
 `;
 
@@ -483,6 +529,43 @@ const resolvers = {
 
       return deletedProduct[0];
     },
+    updateProduct(parent, args, ctx, info) {
+      //Find the product by its ID
+      const product = products.find((product) => {
+        return product.id === args.id;
+      });
+
+      //If product is not found
+      if (!product) {
+        throw new Error("Product not found");
+      }
+
+      //If categoryId is provided, validate it exists
+      if (args.data.categoryID) {
+        const categoryExists = categories.some((category) => {
+          return category.id === args.data.categoryID;
+        });
+        if (!categoryExists) {
+          throw new Error("Invalid category ID");
+        }
+      }
+
+      //Update the fields if they are provided
+      if (typeof args.data.name === "string") {
+        product.name = args.data.name;
+      }
+      if (typeof args.data.price === "number") {
+        product.price = args.data.price;
+      }
+      if (typeof args.data.inStock === "boolean") {
+        product.inStock = args.data.inStock;
+      }
+      if (args.data.categoryID) {
+        product.categoryID = args.data.categoryID;
+      }
+
+      return product;
+    },
 
     createCategory(parent, args, ctx, info) {
       //Validate if the product IDS provided through args exist in the products
@@ -555,6 +638,41 @@ const resolvers = {
 
       return deletedCategory[0];
     },
+    updateCategory(parent, args, ctx, info) {
+      //Find the category by its ID
+      const category = categories.find((category) => {
+        return category.id === args.id;
+      });
+
+      //If category is not found
+      if (!category) {
+        throw new Error("Category not found");
+      }
+
+      //Check if the new name already exists (if provided)
+      if (args.data.name) {
+        const nameExists = categories.some((category) => {
+          return (
+            category.name.toLowerCase() === args.data.name.toLowerCase() &&
+            category.id !== args.id
+          );
+        });
+
+        //If name exists
+        if (nameExists) {
+          throw new Error("Category name already exists");
+        }
+      }
+
+      //Update the fields if they are provided
+      if (typeof args.data.name === "string") {
+        category.name = args.data.name;
+      }
+      if (typeof args.data.description === "string") {
+        category.description = args.data.description;
+      }
+      return category;
+    },
 
     createUser(parent, args, ctx, info) {
       //To check if the email entered is unique or not
@@ -602,6 +720,40 @@ const resolvers = {
       });
 
       return deletedUser[0];
+    },
+    updateUser(parent, args, ctx, info) {
+      //Find the user by their ID
+      const user = users.find((user) => {
+        return user.id === args.id;
+      });
+
+      //If user not found
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      //If the email is provided and already exists in another user, throw an error
+      if (args.data.email) {
+        const emailExists = users.some((user) => {
+          return user.email === args.data.email && user.id !== args.id;
+        });
+        if (emailExists) {
+          throw new Error("Email already in use by another user");
+        }
+      }
+
+      //Update the fields if they are provided
+      if (typeof args.data.name === "string") {
+        user.name = args.data.name;
+      }
+      if (typeof args.data.email === "string") {
+        user.email = args.data.email;
+      }
+      if (typeof args.data.age === "number") {
+        user.age = args.data.age;
+      }
+
+      return user;
     },
 
     createOrder(parent, args, ctx, info) {
@@ -665,6 +817,69 @@ const resolvers = {
       const deletedOrder = orders.splice(orderIndex, 1); //An array
 
       return deletedOrder[0];
+    },
+    updateOrder(parent, args, ctx, info) {
+      //Find the order by its ID
+      const order = orders.find((order) => {
+        return order.id === args.id;
+      });
+
+      //If the order is not found
+      if (!order) {
+        throw new Error("Order not found");
+      }
+
+      //Validate new user ID if provided
+      if (args.data.userID) {
+        const userExists = users.some((user) => {
+          return user.id === args.data.userID;
+        });
+        if (!userExists) {
+          throw new Error("Invalid user ID");
+        }
+      }
+
+      //Validate new product ID if provided
+      if (args.data.productID) {
+        const productExists = products.some((product) => {
+          return product.id === args.data.productID;
+        });
+        if (!productExists) {
+          throw new Error("Invalid product ID");
+        }
+      }
+
+      //Validate new company ID if provided
+      if (args.data.companyID) {
+        const companyExists = companies.some((company) => {
+          return company.id === args.data.companyID;
+        });
+        if (!companyExists) {
+          throw new Error("Invalid company ID");
+        }
+      }
+
+      //Update the fields if provided
+      if (typeof args.data.totalAmount === "number") {
+        order.totalAmount = args.data.totalAmount;
+      }
+      if (typeof args.data.status === "string") {
+        order.status = args.data.status;
+      }
+      if (typeof args.data.orderDate === "string") {
+        order.orderDate = args.data.orderDate;
+      }
+      if (args.data.userID) {
+        order.userID = args.data.userID;
+      }
+      if (args.data.productID) {
+        order.productID = args.data.productID;
+      }
+      if (args.data.companyID) {
+        order.companyID = args.data.companyID;
+      }
+
+      return order;
     },
 
     createReview(parent, args, ctx, info) {
@@ -731,6 +946,55 @@ const resolvers = {
 
       return deletedReview[0];
     },
+    updateReview(parent, args, ctx, info) {
+      //Find the review by its ID
+      const review = reviews.find((review) => {
+        return review.id === args.id;
+      });
+
+      //If review is not found
+      if (!review) {
+        throw new Error("Review not found");
+      }
+
+      //Validate the provided product ID (if any)
+      if (args.data.productID) {
+        const productExists = products.some((product) => {
+          return product.id === args.data.productID;
+        });
+        if (!productExists) {
+          throw new Error("Invalid product ID");
+        }
+      }
+
+      //Validate the provided user ID (if any)
+      if (args.data.userID) {
+        const userExists = users.some((user) => {
+          return user.id === args.data.userID;
+        });
+        if (!userExists) {
+          throw new Error("Invalid user ID");
+        }
+      }
+
+      //Update the fields if they are provided
+      if (typeof args.data.rating === "number") {
+        if (args.data.rating < 0 || args.data.rating > 5) {
+          throw new Error("Rating must be between 0 and 5");
+        }
+        review.rating = args.data.rating;
+      }
+      if (typeof args.data.comment === "string") {
+        review.comment = args.data.comment;
+      }
+      if (args.data.productID) {
+        review.productID = args.data.productID;
+      }
+      if (args.data.userID) {
+        review.userID = args.data.userID;
+      }
+      return review;
+    },
 
     createCompany(parent, args, ctx, info) {
       //Validate that the company name given through the args does not actually exist
@@ -775,6 +1039,43 @@ const resolvers = {
       });
 
       return deletedCompany[0];
+    },
+    updateCompany(parent, args, ctx, info) {
+      //Find the company by its ID
+      const company = companies.find((company) => {
+        return company.id === args.id;
+      });
+
+      //If the company is not found
+      if (!company) {
+        throw new Error("Company not found");
+      }
+
+      //Validate the provided name (if any)
+      if (args.data.name) {
+        const nameExists = companies.some((company) => {
+          return (
+            company.name.toLowerCase() === args.data.name.toLowerCase() &&
+            company.id !== args.id
+          );
+        });
+        if (nameExists) {
+          throw new Error("Company name already exists");
+        }
+      }
+
+      //Update the fields if they are provided
+      if (typeof args.data.name === "string") {
+        company.name = args.data.name;
+      }
+      if (typeof args.data.location === "string") {
+        company.location = args.data.location;
+      }
+      if (typeof args.data.industry === "string") {
+        company.industry = args.data.industry;
+      }
+
+      return company;
     },
   },
 
