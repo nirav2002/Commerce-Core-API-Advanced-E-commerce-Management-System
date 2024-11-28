@@ -62,21 +62,25 @@ const categories = [
     id: "1",
     name: "Electronics",
     description: "Devices and gadgets for everyday use",
+    products: ["1", "5"],
   },
   {
     id: "2",
     name: "Fitness",
     description: "Gear and equipment for staying fit",
+    products: ["2", "6"],
   },
   {
     id: "3",
     name: "Kitchen",
     description: "Essential tools and accessories for your kitchen",
+    products: ["3", "7"],
   },
   {
     id: "4",
     name: "Furniture",
     description: "Comfortable and stlyish furniture for home or office",
+    products: ["4"],
   },
 ];
 
@@ -302,6 +306,11 @@ const typeDefs = `
 
     type Mutation {
         createProduct(data: CreateProductInput!): Product!
+        createCategory(data: CreateCategoryInput!): Category!
+        createUser(data: CreateUserInput!): User!
+        createOrder(data: CreateOrderInput!): Order!
+        createReview(data: CreateReviewInput!): Review!
+        createCompany(data: CreateCompanyInput!): Company!
     }
     
     type Product {
@@ -325,7 +334,7 @@ const typeDefs = `
         id: ID!
         name: String!
         email: String!
-        age: ID
+        age: Int
         orders: [Order!]!
         reviews: [Review!]!
     }
@@ -353,7 +362,6 @@ const typeDefs = `
         name: String!
         location: String!
         industry: String!
-        products: [Product!]!
     }
 
     input CreateProductInput {
@@ -361,6 +369,40 @@ const typeDefs = `
         price: Float!
         categoryID: ID!
         inStock: Boolean!
+    }
+
+    input CreateCategoryInput {
+        name: String!
+        description: String
+        products: [ID!]
+    }
+    
+    input CreateUserInput {
+        name: String!
+        email: String
+        age: Int
+    }
+
+    input CreateOrderInput {
+        totalAmount: Float!
+        status: String!
+        orderDate: String!
+        userID: ID!
+        productID: ID!
+        companyID: ID!
+    }
+
+    input CreateReviewInput {
+        productID: ID!
+        userID: ID!
+        rating: Float!
+        comment: String!
+    }
+
+    input CreateCompanyInput {
+        name: String!
+        location: String!
+        industry: String!
     }
 `;
 
@@ -409,6 +451,167 @@ const resolvers = {
       products.push(product);
       return product;
     },
+    createCategory(parent, args, ctx, info) {
+      //Validate if the product IDS provided through args exist in the products
+      const productExists = args.data.products.filter(
+        (productID) => !products.some((product) => product.id === productID)
+      );
+
+      //If there are invalid product IDs,
+      if (productExists.length > 0) {
+        throw new Error("Invalid Product IDs given");
+      }
+
+      //Check if the category name already exists or not
+      const categoryExists = categories.some((category) => {
+        return category.name.toLowerCase() === args.data.name.toLowerCase();
+      });
+
+      if (categoryExists) {
+        throw new Error(`Category name ${args.data.name} already exists`);
+      }
+
+      //Create the new category object
+      const category = {
+        //Generate a unique ID for the category
+        id: uuidv4(),
+        ...args.data,
+      };
+
+      //Add the new category to the categories array
+      categories.push(category);
+
+      return category;
+    },
+    createUser(parent, args, ctx, info) {
+      //To check if the email entered is unique or not
+      const emailExists = users.some((user) => {
+        return user.email === args.data.email;
+      });
+
+      //If Email Id already exists
+      if (emailExists) {
+        throw new Error("Email already in use");
+      }
+
+      const user = {
+        //Create a new unique ID for the user
+        id: uuidv4(),
+        ...args.data,
+      };
+
+      //Adding the user to the users array
+      users.push(user);
+
+      return user;
+    },
+    createOrder(parent, args, ctx, info) {
+      //Validate if the user ID provided through args exists or not in the users
+      const userExists = users.some((user) => {
+        return user.id === args.data.userID;
+      });
+
+      //If user does not exist
+      if (!userExists) {
+        throw new Error("User not found");
+      }
+
+      //Validate if the product ID provided through args exists or not in the users
+      const productExists = products.find((product) => {
+        return product.id === args.data.productID;
+      });
+
+      //If product does not exist
+      if (!productExists) {
+        throw new Error("Product not found");
+      }
+
+      //Check if the product is in stock or not
+      if (!productExists.inStock) {
+        throw new Error("Product is out of stock");
+      }
+
+      //Validate company ID
+      const companyExists = companies.some((company) => {
+        return company.id === args.data.companyID;
+      });
+
+      if (!companyExists) {
+        throw new Error("Company not found");
+      }
+
+      //Create the new order object
+      const order = {
+        id: uuidv4(),
+        ...args.data,
+      };
+
+      //Add the order to the orders array
+      orders.push(order);
+
+      return order;
+    },
+    createReview(parent, args, ctx, info) {
+      //Validate product ID
+      const productExists = products.find((product) => {
+        return product.id === args.data.productID;
+      });
+
+      //If product does not exist
+      if (!productExists) {
+        throw new Error("Product not found");
+      }
+
+      //Validate user ID
+      const userExists = users.find((user) => {
+        return user.id === args.data.userID;
+      });
+
+      //If user not found
+      if (!userExists) {
+        throw new Error("User not found");
+      }
+
+      //Validate rating
+      if (args.data.rating < 0 || args.data.rating > 5) {
+        throw new Error("Rating must be between 0 and 5");
+      }
+
+      //Create the review object
+      const review = {
+        //Create a unique id for each review
+        id: uuidv4(),
+        ...args.data,
+      };
+
+      //Add the review to the reviews array
+      reviews.push(review);
+
+      return review;
+    },
+    createCompany(parent, args, ctx, info) {
+      //Validate that the company name given through the args does not actually exist
+      const companyExists = companies.some((company) => {
+        return company.name.toLowerCase() === args.data.name.toLowerCase();
+      });
+
+      //If company name already exists
+      if (companyExists) {
+        throw new Error("Company name already exists");
+      }
+
+      //Create a new company object
+      const company = {
+        //Create a unique ID for company
+        id: uuidv4(),
+        ...args.data,
+      };
+
+      //Add the new company to the companies array
+      companies.push(company);
+
+      return company;
+    },
   },
 
   Product: {
@@ -431,11 +634,12 @@ const resolvers = {
   },
   Category: {
     products(parent, args, ctx, info) {
-      return products.filter((product) => {
-        return product.categoryID === parent.id;
-      });
+      return parent.products.map((productID) =>
+        products.find((product) => product.id === productID)
+      );
     },
   },
+
   Order: {
     user(parent, args, ctx, info) {
       return users.find((user) => {
@@ -474,13 +678,6 @@ const resolvers = {
     product(parent, args, ctx, info) {
       return products.find((product) => {
         return product.id === parent.productID;
-      });
-    },
-  },
-  Company: {
-    products(parent, args, ctx, info) {
-      return products.filter((product) => {
-        return product.companyIDs.includes(parent.id);
       });
     },
   },
