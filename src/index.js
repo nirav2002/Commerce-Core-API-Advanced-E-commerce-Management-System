@@ -1,4 +1,5 @@
 import { GraphQLServer } from "graphql-yoga";
+import uuidv4 from "uuid/v4";
 
 //Demo Product Data
 
@@ -9,7 +10,6 @@ const products = [
     price: 25.99,
     categoryID: "1",
     inStock: true,
-    companyIDs: ["1", "3"], // Available in Company A and Company C
   },
   {
     id: "2",
@@ -17,7 +17,6 @@ const products = [
     price: 19.99,
     categoryID: "2",
     inStock: true,
-    companyIDs: ["2", "3"], // Available in Company B and Company C
   },
   {
     id: "3",
@@ -25,7 +24,6 @@ const products = [
     price: 9.99,
     categoryID: "3",
     inStock: false,
-    companyIDs: ["1", "2"], // Available in Company A and Company B
   },
   {
     id: "4",
@@ -33,7 +31,6 @@ const products = [
     price: 199.99,
     categoryID: "4",
     inStock: true,
-    companyIDs: ["1", "4"], // Available in Company A and Company D
   },
   {
     id: "5",
@@ -41,7 +38,6 @@ const products = [
     price: 49.99,
     categoryID: "1",
     inStock: true,
-    companyIDs: ["3", "4"], // Available in Company C and Company D
   },
   {
     id: "6",
@@ -49,7 +45,6 @@ const products = [
     price: 15.99,
     categoryID: "2",
     inStock: true,
-    companyIDs: ["2", "3"], // Available in Company B and Company C
   },
   {
     id: "7",
@@ -57,7 +52,6 @@ const products = [
     price: 89.99,
     categoryID: "3",
     inStock: true,
-    companyIDs: ["1", "4"], // Available in Company A and Company D
   },
 ];
 
@@ -305,6 +299,10 @@ const typeDefs = `
         reviews: [Review!]!
         companies: [Company!]!
     }
+
+    type Mutation {
+        createProduct(data: CreateProductInput!): Product!
+    }
     
     type Product {
         id: ID!
@@ -314,7 +312,6 @@ const typeDefs = `
         category: Category!
         orders: [Order!]!
         reviews: [Review!]!
-        companies: [Company!]!
     }
 
     type Category {
@@ -358,6 +355,13 @@ const typeDefs = `
         industry: String!
         products: [Product!]!
     }
+
+    input CreateProductInput {
+        name: String!
+        price: Float!
+        categoryID: ID!
+        inStock: Boolean!
+    }
 `;
 
 //Resolvers
@@ -382,6 +386,31 @@ const resolvers = {
       return companies;
     },
   },
+  Mutation: {
+    createProduct(parent, args, ctx, info) {
+      //Validate that the categoryID exists
+      const categoryExists = categories.some((category) => {
+        return category.id === args.data.categoryID;
+      });
+
+      //If category does not exist
+      if (!categoryExists) {
+        throw new Error("Category not found");
+      }
+
+      //Create the product
+      const product = {
+        //Create a unique ID
+        id: uuidv4(),
+        ...args.data,
+      };
+
+      //Adding the product to the products array
+      products.push(product);
+      return product;
+    },
+  },
+
   Product: {
     category(parent, args, ctx, info) {
       return categories.find((category) => {
@@ -397,11 +426,6 @@ const resolvers = {
       return reviews.filter((review) => {
         //Match the associated product ID on reviews to the productID (parent's)
         return (review.productID = parent.id);
-      });
-    },
-    companies(parent, args, ctx, info) {
-      return companies.filter((company) => {
-        return parent.companyIDs.includes(company.id);
       });
     },
   },
