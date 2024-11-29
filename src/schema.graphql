@@ -33,6 +33,12 @@ type Mutation {
   updateCompany(id: ID!, data: UpdateCompanyInput!): Company!
 }
 
+type Subscription {
+  order: OrderSubscriptionPayload!
+  product: ProductSubscriptionPayload!
+  review(productID: ID!): ReviewSubscriptionPayload!
+}
+
 type Product {
   id: ID!
   name: String!
@@ -162,4 +168,25 @@ input UpdateCompanyInput {
   name: String
   location: String
   industry: String
+}
+
+enum MutationType {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+type OrderSubscriptionPayload {
+  mutation: MutationType!
+  data: Order!
+}
+
+type ProductSubscriptionPayload {
+  mutation: MutationType!
+  data: Product!
+}
+
+type ReviewSubscriptionPayload {
+  mutation: MutationType!
+  data: Review!
 }
