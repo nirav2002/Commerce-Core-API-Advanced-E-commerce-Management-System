@@ -1,4 +1,4 @@
-import { GraphQLServer } from "graphql-yoga";
+import { GraphQLServer, PubSub } from "graphql-yoga";
 import Query from "./resolvers/Query";
 import Mutation from "./resolvers/Mutation";
 import Product from "./resolvers/Product";
@@ -6,6 +6,10 @@ import User from "./resolvers/User";
 import Order from "./resolvers/Order";
 import Review from "./resolvers/Review";
 import db from "./db";
+import Subscription from "./resolvers/Subscription";
+
+//Creating an instance of PubSub
+const pubsub = new PubSub();
 
 //Creating the server
 const server = new GraphQLServer({
@@ -17,10 +21,12 @@ const server = new GraphQLServer({
     User,
     Order,
     Review,
+    Subscription,
   },
-  //Pass the mock database to all resolvers
+  //Pass the mock database and PubSub instance to all resolvers
   context: {
     db,
+    pubsub,
   },
 });
 
