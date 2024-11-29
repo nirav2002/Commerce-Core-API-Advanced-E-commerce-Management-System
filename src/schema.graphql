@@ -1,0 +1,165 @@
+type Query {
+  products: [Product!]!
+  categories: [Category!]!
+  users: [User!]!
+  orders: [Order!]!
+  reviews: [Review!]!
+  companies: [Company!]!
+}
+
+type Mutation {
+  createProduct(data: CreateProductInput!): Product!
+  deleteProduct(id: ID!): Product!
+  updateProduct(id: ID!, data: UpdateProductInput!): Product!
+
+  createCategory(data: CreateCategoryInput!): Category!
+  deleteCategory(id: ID!): Category!
+  updateCategory(id: ID!, data: UpdateCategoryInput!): Category!
+
+  createUser(data: CreateUserInput!): User!
+  deleteUser(id: ID!): User!
+  updateUser(id: ID!, data: UpdateUserInput!): User!
+
+  createOrder(data: CreateOrderInput!): Order!
+  deleteOrder(id: ID!): Order!
+  updateOrder(id: ID!, data: UpdateOrderInput!): Order!
+
+  createReview(data: CreateReviewInput!): Review!
+  deleteReview(id: ID!): Review!
+  updateReview(id: ID!, data: UpdateReviewInput!): Review!
+
+  createCompany(data: CreateCompanyInput!): Company!
+  deleteCompany(id: ID!): Company!
+  updateCompany(id: ID!, data: UpdateCompanyInput!): Company!
+}
+
+type Product {
+  id: ID!
+  name: String!
+  price: Float!
+  inStock: Boolean!
+  category: Category!
+  orders: [Order!]!
+  reviews: [Review!]!
+}
+
+type Category {
+  id: ID!
+  name: String!
+  description: String
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  age: Int
+  orders: [Order!]!
+  reviews: [Review!]!
+}
+
+type Order {
+  id: ID!
+  totalAmount: Float!
+  status: String!
+  orderDate: String!
+  user: User!
+  product: Product!
+  company: Company!
+}
+
+type Review {
+  id: ID!
+  product: Product!
+  user: User!
+  rating: Float!
+  comment: String!
+}
+
+type Company {
+  id: ID!
+  name: String!
+  location: String!
+  industry: String!
+}
+
+input CreateProductInput {
+  name: String!
+  price: Float!
+  categoryID: ID!
+  inStock: Boolean!
+}
+
+input UpdateProductInput {
+  name: String
+  price: Float
+  inStock: Boolean
+  categoryID: ID
+}
+
+input CreateCategoryInput {
+  name: String!
+  description: String
+  products: [ID!]
+}
+
+input UpdateCategoryInput {
+  name: String
+  description: String
+}
+
+input CreateUserInput {
+  name: String!
+  email: String
+  age: Int
+}
+
+input UpdateUserInput {
+  name: String
+  email: String
+  age: Int
+}
+
+input CreateOrderInput {
+  totalAmount: Float!
+  status: String!
+  orderDate: String!
+  userID: ID!
+  productID: ID!
+  companyID: ID!
+}
+
+input UpdateOrderInput {
+  totalAmount: Float
+  status: String
+  orderDate: String
+  userID: ID
+  productID: ID
+  companyID: ID
+}
+
+input CreateReviewInput {
+  productID: ID!
+  userID: ID!
+  rating: Float!
+  comment: String!
+}
+
+input UpdateReviewInput {
+  productID: ID
+  userID: ID
+  rating: Float
+  comment: String
+}
+
+input CreateCompanyInput {
+  name: String!
+  location: String!
+  industry: String!
+}
+
+input UpdateCompanyInput {
+  name: String
+  location: String
+  industry: String
+}
