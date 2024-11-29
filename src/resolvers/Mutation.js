@@ -1,7 +1,7 @@
 import uuidv4 from "uuid";
 
 const Mutation = {
-  createProduct(parent, args, { db }, info) {
+  createProduct(parent, args, { db, pubsub }, info) {
     //Validate that the categoryID exists
     const categoryExists = db.categories.some((category) => {
       return category.id === args.data.categoryID;
@@ -21,9 +21,18 @@ const Mutation = {
 
     //Adding the product to the products array
     db.products.push(product);
+
+    //Publishing the product to the pubsub model
+    pubsub.publish("productChannel", {
+      product: {
+        mutation: "CREATED",
+        data: product, //Passing the product object here (Newly created object)
+      },
+    });
+
     return product;
   },
-  deleteProduct(parent, args, { db }, info) {
+  deleteProduct(parent, args, { db, pubsub }, info) {
     //Find the index of the product to be deleted
     const productIndex = db.products.findIndex((product) => {
       return product.id === args.id;
@@ -47,9 +56,17 @@ const Mutation = {
       return review.productID !== args.id;
     });
 
+    //Publish the deleted product to pubsub model
+    pubsub.publish("productChannel", {
+      product: {
+        mutation: "DELETED",
+        data: deletedProduct[0], //Sending the deleted product back
+      },
+    });
+
     return deletedProduct[0];
   },
-  updateProduct(parent, args, { db }, info) {
+  updateProduct(parent, args, { db, pubsub }, info) {
     //Find the product by its ID
     const product = db.products.find((product) => {
       return product.id === args.id;
@@ -83,6 +100,14 @@ const Mutation = {
     if (args.data.categoryID) {
       product.categoryID = args.data.categoryID;
     }
+
+    //Publish the updated product to the pubsub model
+    pubsub.publish("productChannel", {
+      product: {
+        mutation: "UPDATED",
+        data: product, //Returning the updated product
+      },
+    });
 
     return product;
   },
@@ -278,7 +303,7 @@ const Mutation = {
     return user;
   },
 
-  createOrder(parent, args, { db }, info) {
+  createOrder(parent, args, { db, pubsub }, info) {
     //Validate if the user ID provided through args exists or not in the users
     const userExists = db.users.some((user) => {
       return user.id === args.data.userID;
@@ -319,12 +344,20 @@ const Mutation = {
       ...args.data,
     };
 
+    //Publish the order to the pubsub model
+    pubsub.publish("orderChannel", {
+      order: {
+        mutation: "CREATED",
+        data: order,
+      },
+    });
+
     //Add the order to the orders array
     db.orders.push(order);
 
     return order;
   },
-  deleteOrder(parent, args, { db }, info) {
+  deleteOrder(parent, args, { db, pubsub }, info) {
     //Validate if the order exists
     const orderIndex = db.orders.findIndex((order) => {
       return order.id === args.id;
@@ -338,9 +371,17 @@ const Mutation = {
     //Remove the order
     const deletedOrder = db.orders.splice(orderIndex, 1); //An array
 
+    //Publish the deleted order to pubsub model
+    pubsub.publish("orderChannel", {
+      order: {
+        mutation: "DELETED",
+        data: deletedOrder[0],
+      },
+    });
+
     return deletedOrder[0];
   },
-  updateOrder(parent, args, { db }, info) {
+  updateOrder(parent, args, { db, pubsub }, info) {
     //Find the order by its ID
     const order = db.orders.find((order) => {
       return order.id === args.id;
@@ -401,10 +442,18 @@ const Mutation = {
       order.companyID = args.data.companyID;
     }
 
+    //Publish the updated order to pubsub model
+    pubsub.publish("orderChannel", {
+      order: {
+        mutation: "UPDATED",
+        data: order,
+      },
+    });
+
     return order;
   },
 
-  createReview(parent, args, { db }, info) {
+  createReview(parent, args, { db, pubsub }, info) {
     //Validate product ID
     const productExists = db.products.find((product) => {
       return product.id === args.data.productID;
@@ -440,9 +489,17 @@ const Mutation = {
     //Add the review to the reviews array
     db.reviews.push(review);
 
+    //Publish the review to the pubsub model
+    pubsub.publish(`reviewChannel_${args.data.productID}`, {
+      review: {
+        mutation: "CREATED",
+        data: review,
+      },
+    });
+
     return review;
   },
-  deleteReview(parent, args, { db }, info) {
+  deleteReview(parent, args, { db, pubsub }, info) {
     //Validate if the review exists
     const reviewIndex = db.reviews.findIndex((review) => {
       return review.id === args.id;
@@ -466,9 +523,17 @@ const Mutation = {
       };
     });
 
+    //Publish the deleted review to the pubsub model
+    pubsub.publish(`reviewChannel_${deletedReview[0].productID}`, {
+      review: {
+        mutation: "DELETED",
+        data: deletedReview[0],
+      },
+    });
+
     return deletedReview[0];
   },
-  updateReview(parent, args, { db }, info) {
+  updateReview(parent, args, { db, pubsub }, info) {
     //Find the review by its ID
     const review = db.reviews.find((review) => {
       return review.id === args.id;
@@ -515,6 +580,15 @@ const Mutation = {
     if (args.data.userID) {
       review.userID = args.data.userID;
     }
+
+    //Publish the review update event
+    pubsub.publish(`reviewChannel_${review.productID}`, {
+      review: {
+        mutation: "UPDATED",
+        data: review,
+      },
+    });
+
     return review;
   },
 
