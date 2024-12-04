@@ -53,6 +53,7 @@ type Category {
   id: ID!
   name: String!
   description: String
+  products: [Product!]!
 }
 
 type User {
