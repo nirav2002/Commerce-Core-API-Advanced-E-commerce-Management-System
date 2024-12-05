@@ -1,12 +1,24 @@
 const Review = {
-  user(parent, args, { db }, info) {
-    return db.users.find((user) => {
-      return user.id === parent.userID;
+  user(parent, args, { prisma }, info) {
+    //Convert userID to integer before querying
+    const userId = parseInt(parent.userId, 10);
+
+    //Query user by ID using Prisma
+    return prisma.user.findUnique({
+      where: {
+        id: userId, //Use integer userId
+      },
     });
   },
-  product(parent, args, { db }, info) {
-    return db.products.find((product) => {
-      return product.id === parent.productID;
+  product(parent, args, { prisma }, info) {
+    //Convert productID to integer before querying
+    const productId = parseInt(parent.productId, 10);
+
+    //Query product by ID using Prisma
+    return prisma.product.findUnique({
+      where: {
+        id: productId, //Use integer productId
+      },
     });
   },
 };
