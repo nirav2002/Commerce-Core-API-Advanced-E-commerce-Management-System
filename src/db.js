@@ -142,15 +142,6 @@ const orders = [
   },
   {
     id: "5",
-    totalAmount: 9.99,
-    status: "Processing",
-    orderDate: "2024-11-05",
-    userID: "2",
-    productID: "3",
-    companyID: "3",
-  },
-  {
-    id: "6",
     totalAmount: 199.99,
     status: "Processing",
     orderDate: "2024-11-05",
@@ -159,7 +150,7 @@ const orders = [
     companyID: "4",
   },
   {
-    id: "7",
+    id: "6",
     totalAmount: 49.99,
     status: "Delivered",
     orderDate: "2024-11-06",
@@ -168,7 +159,7 @@ const orders = [
     companyID: "1",
   },
   {
-    id: "8",
+    id: "7",
     totalAmount: 15.99,
     status: "Shipped",
     orderDate: "2024-11-07",
@@ -177,13 +168,22 @@ const orders = [
     companyID: "2",
   },
   {
-    id: "9",
+    id: "8",
     totalAmount: 89.99,
     status: "Delivered",
     orderDate: "2024-11-08",
     userID: "3",
     productID: "7",
     companyID: "3",
+  },
+  {
+    id: "9",
+    totalAmount: 39.99,
+    status: "Shipped",
+    orderDate: "2024-11-10",
+    userID: "2",
+    productID: "4",
+    companyID: "4",
   },
 ];
 
