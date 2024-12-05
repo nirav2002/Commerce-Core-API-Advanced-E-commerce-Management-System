@@ -1,10 +1,15 @@
 import uuidv4 from "uuid";
 
 const Mutation = {
-  createProduct(parent, args, { db, pubsub }, info) {
-    //Validate that the categoryID exists
-    const categoryExists = db.categories.some((category) => {
-      return category.id === args.data.categoryID;
+  async createProduct(parent, args, { prisma, pubsub }, info) {
+    //Validate that the categoryID exists using Prisma
+    const categoryID = parseInt(args.data.categoryID, 10);
+    console.log("First CategoryID ", typeof categoryID);
+
+    const categoryExists = await prisma.category.findUnique({
+      where: {
+        id: categoryID, //CategoryID is integer
+      },
     });
 
     //If category does not exist
@@ -12,183 +17,248 @@ const Mutation = {
       throw new Error("Category not found");
     }
 
-    //Create the product
-    const product = {
-      //Create a unique ID
-      id: uuidv4(),
-      ...args.data,
-    };
+    console.log("categoryID:", args.data.categoryID);
+    console.log("Type: ", typeof args.data.categoryID);
 
-    //Adding the product to the products array
-    db.products.push(product);
+    //Create the product using Prisma
+    const product = await prisma.product.create({
+      data: {
+        name: args.data.name,
+        price: args.data.price,
+        inStock: args.data.inStock,
+        category: {
+          connect: {
+            id: categoryID,
+          },
+        },
+      },
+    });
 
-    //Publishing the product to the pubsub model
+    //Publish the product creation to the pubsub model
     pubsub.publish("productChannel", {
       product: {
         mutation: "CREATED",
-        data: product, //Passing the product object here (Newly created object)
+        data: product,
       },
     });
 
     return product;
   },
-  deleteProduct(parent, args, { db, pubsub }, info) {
-    //Find the index of the product to be deleted
-    const productIndex = db.products.findIndex((product) => {
-      return product.id === args.id;
+
+  async deleteProduct(parent, args, { prisma, pubsub }, info) {
+    //Ensure that id is an integer
+    const productId = parseInt(args.id, 10);
+
+    //Validate if the product exists using Prisma
+    const product = await prisma.product.findUnique({
+      where: {
+        id: productId,
+      },
     });
 
-    //If product not found
-    if (productIndex === -1) {
+    //If product does not exist
+    if (!product) {
       throw new Error("Product not found");
     }
 
-    //Remove the product from the products array and store it
-    const deletedProduct = db.products.splice(productIndex, 1); //An array
+    //Delete the product using Prisma
+    const deletedProduct = await prisma.product.delete({
+      where: {
+        id: productId,
+      },
+    });
 
     //Remove all orders associated with the product
-    db.orders = db.orders.filter((order) => {
-      return order.productID !== args.id;
+    await prisma.order.deleteMany({
+      where: {
+        productId: productId, //Ensuring productId is an integer
+      },
     });
 
     //Remove all reviews associated with the product
-    db.reviews = db.reviews.filter((review) => {
-      return review.productID !== args.id;
+    await prisma.review.deleteMany({
+      where: {
+        productId: productId,
+      },
     });
 
     //Publish the deleted product to pubsub model
     pubsub.publish("productChannel", {
       product: {
         mutation: "DELETED",
-        data: deletedProduct[0], //Sending the deleted product back
+        data: deletedProduct,
       },
     });
 
-    return deletedProduct[0];
+    return deletedProduct;
   },
-  updateProduct(parent, args, { db, pubsub }, info) {
-    //Find the product by its ID
-    const product = db.products.find((product) => {
-      return product.id === args.id;
+
+  async updateProduct(parent, args, { prisma, pubsub }, info) {
+    //Convert the id to an integer
+    const productId = parseInt(args.id, 10);
+
+    //Check if the product exists using Prisma
+    const product = await prisma.product.findUnique({
+      where: {
+        id: productId, //Use the integer productId
+      },
     });
 
-    //If product is not found
+    //If product does not exist
     if (!product) {
       throw new Error("Product not found");
     }
 
-    //If categoryId is provided, validate it exists
-    if (args.data.categoryID) {
-      const categoryExists = db.categories.some((category) => {
-        return category.id === args.data.categoryID;
+    //If categoryId is provided with args.data for updation, validate it exists using Prisma
+    if (args.data.categoryId) {
+      //Convert categoryId to an integer
+      const categoryId = parseInt(args.data.categoryId, 10);
+
+      const categoryExists = await prisma.category.findUnique({
+        where: {
+          id: categoryId, //Use the integer categoryId
+        },
       });
+
+      //If category does not exist
       if (!categoryExists) {
         throw new Error("Invalid category ID");
       }
     }
 
-    //Update the fields if they are provided
-    if (typeof args.data.name === "string") {
-      product.name = args.data.name;
-    }
-    if (typeof args.data.price === "number") {
-      product.price = args.data.price;
-    }
-    if (typeof args.data.inStock === "boolean") {
-      product.inStock = args.data.inStock;
-    }
-    if (args.data.categoryID) {
-      product.categoryID = args.data.categoryID;
-    }
+    //Update the product using Prisma
+    const updatedProduct = await prisma.product.update({
+      where: {
+        id: productId, //Use the integer productId
+      },
+      data: args.data,
+    });
 
     //Publish the updated product to the pubsub model
     pubsub.publish("productChannel", {
       product: {
         mutation: "UPDATED",
-        data: product, //Returning the updated product
+        data: updatedProduct,
       },
     });
 
-    return product;
+    return updatedProduct;
   },
 
-  createCategory(parent, args, { db }, info) {
-    const productIDs = args.data.products || [];
+  async createCategory(parent, args, { prisma, pubsub }, info) {
+    const productIDs = args.data.products || []; // Default to empty array if not provided
 
-    //Validate if the product IDS provided through args exist in the products
-    const productExists = productIDs.filter(
-      (productID) => !db.products.some((product) => product.id === productID)
+    // Validate if the product IDs provided exist in the products
+    const productExists = await Promise.all(
+      productIDs.map(async (productID) => {
+        const product = await prisma.product.findUnique({
+          where: { id: productID },
+        });
+        return product ? null : `Invalid Product ID: ${productID}`;
+      })
     );
 
-    //If there are invalid product IDs,
-    if (productExists.length > 0) {
-      throw new Error("Invalid Product IDs given");
+    // Filter out any invalid product IDs
+    const invalidProducts = productExists.filter((result) => result !== null);
+
+    // If there are invalid product IDs, throw an error
+    if (invalidProducts.length > 0) {
+      throw new Error(invalidProducts.join(", "));
     }
 
-    //Check if the category name already exists or not
-    const categoryExists = db.categories.some((category) => {
-      return category.name.toLowerCase() === args.data.name.toLowerCase();
+    // Check if the category name already exists
+    const categoryExists = await prisma.category.findUnique({
+      where: { name: args.data.name },
     });
 
+    // If category name already exists, throw an error
     if (categoryExists) {
       throw new Error(`Category name ${args.data.name} already exists`);
     }
 
-    //Create the new category object
-    const category = {
-      //Generate a unique ID for the category
-      id: uuidv4(),
-      ...args.data,
-    };
-
-    //Add the new category to the categories array
-    db.categories.push(category);
+    // Create the new category using Prisma (ID will be auto-generated by PostgreSQL)
+    const category = await prisma.category.create({
+      data: {
+        ...args.data,
+        products: {
+          connect: productIDs.map((id) => ({ id })),
+        },
+      },
+    });
 
     return category;
   },
-  deleteCategory(parent, args, { db }, info) {
-    //Find the category index
-    const categoryIndex = db.categories.findIndex((category) => {
-      return category.id === args.id;
+
+  async deleteCategory(parent, args, { prisma, pubsub }, info) {
+    //Converting categoryId to an integer
+    const categoryId = parseInt(args.id, 10);
+
+    //Validate if the category exists using Prisma
+    const category = await prisma.category.findUnique({
+      where: {
+        id: categoryId, //Use the integer categoryId
+      },
     });
 
     //If category not found
-    if (categoryIndex === -1) {
+    if (!category) {
       throw new Error("Category not found");
     }
 
-    //Remove the category
-    const deletedCategory = db.categories.splice(categoryIndex, 1); //An array
-
-    //linkedProducts is an array that contains the products that are linked to the category being deleted
-    const linkedProducts = db.products.filter((product) => {
-      return product.categoryID === args.id;
+    //Delete the category using Prisma
+    const deletedCategory = await prisma.category.delete({
+      where: {
+        id: categoryId, //Use the integer categoryId
+      },
     });
 
     //Find and remove all products linked to the category
-    db.products = db.products.filter((product) => {
-      product.categoryID !== args.id;
+    await prisma.product.deleteMany({
+      where: {
+        categoryID: categoryId, //Use the integer categoryId
+      },
     });
 
-    //Remove all orders and reviews associated with the deleted product
-    db.orders = db.orders.filter((order) => {
-      return !linkedProducts.some((product) => {
-        return product.id === order.productID;
-      });
+    //Remove all orders and reviews associated with the deleted products
+    await prisma.order.deleteMany({
+      where: {
+        productId: {
+          in: deletedCategory.productIDs,
+        },
+      },
     });
 
-    db.reviews = db.reviews.filter((review) => {
-      return !linkedProducts.some((product) => {
-        return product.id === review.productID;
-      });
+    await prisma.review.deleteMany({
+      where: {
+        productId: {
+          in: deletedCategory.productIds,
+        },
+      },
     });
 
-    return deletedCategory[0];
+    //Publish the deleted category to pubsub model
+    pubsub.publish("categoryChannel", {
+      category: {
+        mutation: "DELETED",
+        data: deletedCategory,
+      },
+    });
+
+    return deletedCategory;
   },
-  updateCategory(parent, args, { db }, info) {
+
+  async updateCategory(parent, args, { prisma, pubsub }, info) {
+    //Converting categoryId to an integer
+    const categoryId = parseInt(args.id, 10);
+
     //Find the category by its ID
-    const category = db.categories.find((category) => {
-      return category.id === args.id;
+    const category = await prisma.category.findUnique({
+      where: {
+        id: categoryId, //Use the integer categoryId
+      },
+      include: {
+        products: true, //Ensure we include products, even if empty
+      },
     });
 
     //If category is not found
@@ -196,82 +266,115 @@ const Mutation = {
       throw new Error("Category not found");
     }
 
-    //Check if the new name already exists (if provided)
+    //Check if the new name already exists (if provided in args)
     if (args.data.name) {
-      const nameExists = db.categories.some((category) => {
-        return (
-          category.name.toLowerCase() === args.data.name.toLowerCase() &&
-          category.id !== args.id
-        );
+      const nameExists = await prisma.category.findUnique({
+        where: {
+          name: args.data.name,
+        },
       });
-
-      //If name exists
-      if (nameExists) {
+      if (nameExists && nameExists.id !== categoryId) {
         throw new Error("Category name already exists");
       }
     }
 
-    //Update the fields if they are provided
-    if (typeof args.data.name === "string") {
-      category.name = args.data.name;
-    }
-    if (typeof args.data.description === "string") {
-      category.description = args.data.description;
-    }
-    return category;
-  },
-
-  createUser(parent, args, { db }, info) {
-    //To check if the email entered is unique or not
-    const emailExists = db.users.some((user) => {
-      return user.email === args.data.email;
+    // Update the category using Prisma
+    const updatedCategory = await prisma.category.update({
+      where: {
+        id: categoryId, // Use the integer categoryId
+      },
+      data: {
+        ...args.data,
+        // Ensure we update products if provided, otherwise keep existing ones
+        products: args.data.products ? { set: args.data.products } : undefined,
+      },
+      include: {
+        products: true, // Include products in the updated category
+      },
     });
 
-    //If Email Id already exists
+    //Publish the updated category to the pubsub model
+    pubsub.publish("categoryChannel", {
+      category: {
+        mutation: "UPDATED",
+        data: updatedCategory,
+      },
+    });
+
+    return updatedCategory;
+  },
+
+  async createUser(parent, args, { prisma }, info) {
+    //To check if the email entered is unique or not
+    const emailExists = await prisma.user.findUnique({
+      where: {
+        email: args.data.email,
+      },
+    });
+
+    //If Email ID already exists
     if (emailExists) {
       throw new Error("Email already in use");
     }
 
-    const user = {
-      //Create a new unique ID for the user
-      id: uuidv4(),
-      ...args.data,
-    };
-
-    //Adding the user to the users array
-    db.users.push(user);
+    //Create the user using Prisma
+    const user = await prisma.user.create({
+      data: {
+        ...args.data,
+      },
+    });
 
     return user;
   },
-  deleteUser(parent, args, { db }, info) {
-    //Validate if the user exists
-    const userIndex = db.users.findIndex((user) => {
-      return user.id === args.id;
+
+  async deleteUser(parent, args, { prisma }, info) {
+    //Convert id to an integer
+    const userId = parseInt(args.id, 10);
+
+    //Validate if the user exists using Prisma
+    const userExists = await prisma.user.findUnique({
+      where: {
+        id: userId, //Use the integer userId
+      },
     });
 
     //If user not found
-    if (userIndex === -1) {
+    if (!userExists) {
       throw new Error("User not found");
     }
 
-    //Remove the user
-    const deletedUser = db.users.splice(userIndex, 1); //An array
+    //Delete the user using Prisma
+    const deletedUser = await prisma.user.delete({
+      where: {
+        id: userId, //Use the integer userId
+      },
+    });
 
     //Remove all orders and reviews created by the user
-    db.orders = db.orders.filter((order) => {
-      return order.userID !== args.id;
+    await prisma.order.deleteMany({
+      where: {
+        userId: userId, //Use the integer userId
+      },
     });
 
-    db.reviews = db.reviews.filter((review) => {
-      return review.userID !== args.id;
+    await prisma.review.deleteMany({
+      where: {
+        userId: userId, //Use the integer userId
+      },
     });
 
-    return deletedUser[0];
+    return deletedUser;
   },
-  updateUser(parent, args, { db }, info) {
-    //Find the user by their ID
-    const user = db.users.find((user) => {
-      return user.id === args.id;
+
+  async updateUser(parent, args, { prisma }, info) {
+    //Convert id to integer
+    const userId = parseInt(args.id, 10);
+
+    //Find the user by their ID using Prisma
+    const user = await prisma.user.findUnique({
+      where: {
+        id: userId, //Use integer userId
+      },
     });
 
     //If user not found
@@ -281,32 +384,40 @@ const Mutation = {
 
     //If the email is provided and already exists in another user, throw an error
     if (args.data.email) {
-      const emailExists = db.users.some((user) => {
-        return user.email === args.data.email && user.id !== args.id;
+      const emailExists = await prisma.user.findUnique({
+        where: {
+          email: args.data.email,
+        },
       });
-      if (emailExists) {
+
+      //If email exists
+      if (emailExists && emailExists.id !== args.id) {
         throw new Error("Email already in use by another user");
       }
     }
 
-    //Update the fields if they are provided
-    if (typeof args.data.name === "string") {
-      user.name = args.data.name;
-    }
-    if (typeof args.data.email === "string") {
-      user.email = args.data.email;
-    }
-    if (typeof args.data.age === "number") {
-      user.age = args.data.age;
-    }
+    //Update the fields
+    const updatedUser = await prisma.user.update({
+      where: {
+        id: userId, //Use integer userId
+      },
+      data: args.data,
+    });
 
-    return user;
+    return updatedUser;
   },
 
-  createOrder(parent, args, { db, pubsub }, info) {
-    //Validate if the user ID provided through args exists or not in the users
-    const userExists = db.users.some((user) => {
-      return user.id === args.data.userID;
+  async createOrder(parent, args, { prisma, pubsub }, info) {
+    //Converting the IDs to integers
+    const userID = parseInt(args.data.userID, 10);
+    const productID = parseInt(args.data.productID, 10);
+    const companyID = parseInt(args.data.companyID, 10);
+
+    //Validate if the user ID provided through args exists or not in the database
+    const userExists = await prisma.user.findUnique({
+      where: {
+        id: userID,
+      },
     });
 
     //If user does not exist
@@ -314,9 +425,11 @@ const Mutation = {
       throw new Error("User not found");
     }
 
-    //Validate if the product ID provided through args exists or not in the users
-    const productExists = db.products.find((product) => {
-      return product.id === args.data.productID;
+    //Validate if the product ID provided through args exists or not
+    const productExists = await prisma.product.findUnique({
+      where: {
+        id: productID,
+      },
     });
 
     //If product does not exist
@@ -330,19 +443,28 @@ const Mutation = {
     }
 
     //Validate company ID
-    const companyExists = db.companies.some((company) => {
-      return company.id === args.data.companyID;
+    const companyExists = await prisma.company.findUnique({
+      where: {
+        id: companyID,
+      },
     });
 
+    //If company not found
     if (!companyExists) {
       throw new Error("Company not found");
     }
 
-    //Create the new order object
-    const order = {
-      id: uuidv4(),
-      ...args.data,
-    };
+    //Create the new order using Prisma
+    const order = await prisma.order.create({
+      data: {
+        userId: userID,
+        productId: productID,
+        companyId: companyID,
+        totalAmount: args.data.totalAmount,
+        status: args.data.status,
+        orderDate: args.data.orderDate,
+      },
+    });
 
     //Publish the order to the pubsub model
     pubsub.publish("orderChannel", {
@@ -352,61 +474,82 @@ const Mutation = {
       },
     });
 
-    //Add the order to the orders array
-    db.orders.push(order);
-
     return order;
   },
-  deleteOrder(parent, args, { db, pubsub }, info) {
-    //Validate if the order exists
-    const orderIndex = db.orders.findIndex((order) => {
-      return order.id === args.id;
-    });
 
-    //If order is not found
-    if (orderIndex === -1) {
-      throw new Error("Order not found");
-    }
+  async deleteOrder(parent, args, { prisma, pubsub }, info) {
+    //Converting orderId to an integer
+    const orderId = parseInt(args.id, 10);
 
-    //Remove the order
-    const deletedOrder = db.orders.splice(orderIndex, 1); //An array
-
-    //Publish the deleted order to pubsub model
-    pubsub.publish("orderChannel", {
-      order: {
-        mutation: "DELETED",
-        data: deletedOrder[0],
+    //Validate if the order exists using Prisma
+    const orderExists = await prisma.order.findUnique({
+      where: {
+        id: orderId, //Use the integer orderId
       },
     });
 
-    return deletedOrder[0];
-  },
-  updateOrder(parent, args, { db, pubsub }, info) {
-    //Find the order by its ID
-    const order = db.orders.find((order) => {
-      return order.id === args.id;
+    //If order not found
+    if (!orderExists) {
+      throw new Error("Order not found");
+    }
+
+    //Delete the order using Prisma
+    const deletedOrder = await prisma.order.delete({
+      where: {
+        id: orderId, //Use the integer orderId
+      },
+    });
+    pubsub.publish("orderChannel", {
+      order: {
+        mutation: "DELETED",
+        data: deletedOrder,
+      },
     });
 
-    //If the order is not found
-    if (!order) {
+    return deletedOrder;
+  },
+
+  async updateOrder(parent, args, { prisma, pubsub }, info) {
+    //Converting IDs to integer
+    const orderId = parseInt(args.id, 10);
+    const userId = parseInt(args.data.userID, 10);
+    const productId = parseInt(args.data.productID, 10);
+    const companyId = parseInt(args.data.companyID, 10);
+
+    //Check whether the order exists or not
+    const orderExists = await prisma.order.findUnique({
+      where: {
+        id: orderId, //Use the integer orderId
+      },
+    });
+
+    //If order is not found
+    if (!orderExists) {
       throw new Error("Order not found");
     }
 
     //Validate new user ID if provided
     if (args.data.userID) {
-      const userExists = db.users.some((user) => {
-        return user.id === args.data.userID;
+      const userExists = await prisma.user.findUnique({
+        where: {
+          id: userId, //Use the integer userId
+        },
       });
+
+      //If user does not exist
       if (!userExists) {
         throw new Error("Invalid user ID");
       }
     }
-
     //Validate new product ID if provided
     if (args.data.productID) {
-      const productExists = db.products.some((product) => {
-        return product.id === args.data.productID;
+      const productExists = await prisma.product.findUnique({
+        where: {
+          id: productId, //Use the integer productId
+        },
       });
+
+      //If product does not exist
       if (!productExists) {
         throw new Error("Invalid product ID");
       }
@@ -414,49 +557,47 @@ const Mutation = {
 
     //Validate new company ID if provided
     if (args.data.companyID) {
-      const companyExists = db.companies.some((company) => {
-        return company.id === args.data.companyID;
+      const companyExists = await prisma.company.findUnique({
+        where: {
+          id: companyId, //Use the integer companyId
+        },
       });
+
+      //If company does not exist
       if (!companyExists) {
         throw new Error("Invalid company ID");
       }
     }
 
-    //Update the fields if provided
-    if (typeof args.data.totalAmount === "number") {
-      order.totalAmount = args.data.totalAmount;
-    }
-    if (typeof args.data.status === "string") {
-      order.status = args.data.status;
-    }
-    if (typeof args.data.orderDate === "string") {
-      order.orderDate = args.data.orderDate;
-    }
-    if (args.data.userID) {
-      order.userID = args.data.userID;
-    }
-    if (args.data.productID) {
-      order.productID = args.data.productID;
-    }
-    if (args.data.companyID) {
-      order.companyID = args.data.companyID;
-    }
+    //Update the order using Prisma
+    const updatedOrder = await prisma.order.update({
+      where: {
+        id: orderId, //Use the integer orderId
+      },
+      data: args.data,
+    });
 
     //Publish the updated order to pubsub model
     pubsub.publish("orderChannel", {
       order: {
         mutation: "UPDATED",
-        data: order,
+        data: updatedOrder,
       },
     });
 
-    return order;
+    return updatedOrder;
   },
 
-  createReview(parent, args, { db, pubsub }, info) {
-    //Validate product ID
-    const productExists = db.products.find((product) => {
-      return product.id === args.data.productID;
+  async createReview(parent, args, { prisma, pubsub }, info) {
+    //Convert productID and userID to integers
+    const productId = parseInt(args.data.productID, 10);
+    const userId = parseInt(args.data.userID, 10);
+
+    //Validate if the product exists using Prisma
+    const productExists = await prisma.product.findUnique({
+      where: {
+        id: productId, //Use integer productId
+      },
     });
 
     //If product does not exist
@@ -464,12 +605,14 @@ const Mutation = {
       throw new Error("Product not found");
     }
 
-    //Validate user ID
-    const userExists = db.users.find((user) => {
-      return user.id === args.data.userID;
+    //Validate if the user exists using Prisma
+    const userExists = await prisma.user.findUnique({
+      where: {
+        id: userId, //Use integer userId
+      },
     });
 
-    //If user not found
+    //If user does not exist
     if (!userExists) {
       throw new Error("User not found");
     }
@@ -479,15 +622,23 @@ const Mutation = {
       throw new Error("Rating must be between 0 and 5");
     }
 
-    //Create the review object
-    const review = {
-      //Create a unique id for each review
-      id: uuidv4(),
-      ...args.data,
-    };
-
-    //Add the review to the reviews array
-    db.reviews.push(review);
+    //Create the review using Prisma
+    const review = await prisma.review.create({
+      data: {
+        rating: args.data.rating,
+        comment: args.data.comment,
+        product: {
+          connect: {
+            id: productId, //Connecting to the existing product
+          },
+        },
+        user: {
+          connect: {
+            id: userId, //Connecting to the existing user
+          },
+        },
+      },
+    });
 
     //Publish the review to the pubsub model
     pubsub.publish(`reviewChannel_${args.data.productID}`, {
@@ -499,56 +650,68 @@ const Mutation = {
 
     return review;
   },
-  deleteReview(parent, args, { db, pubsub }, info) {
-    //Validate if the review exists
-    const reviewIndex = db.reviews.findIndex((review) => {
-      return review.id === args.id;
-    });
 
-    //If review not found
-    if (reviewIndex === -1) {
-      throw new Error("Review not found");
-    }
+  async deleteReview(parent, args, { prisma, pubsub }, info) {
+    //Convert reviewId to integer
+    const reviewId = parseInt(args.id, 10);
 
-    //Remove the review
-    const deletedReview = db.reviews.splice(reviewIndex, 1); //An array
-
-    //Clean up user's reviews
-    db.users = db.users.map((user) => {
-      return {
-        ...user,
-        reviews: user.reviews
-          ? user.reviews.filter((review) => review.id !== args.id)
-          : [],
-      };
-    });
-
-    //Publish the deleted review to the pubsub model
-    pubsub.publish(`reviewChannel_${deletedReview[0].productID}`, {
-      review: {
-        mutation: "DELETED",
-        data: deletedReview[0],
+    //Validate if the review exists using Prisma
+    const reviewExists = await prisma.review.findUnique({
+      where: {
+        id: reviewId, //Use integer reviewId
       },
     });
 
-    return deletedReview[0];
-  },
-  updateReview(parent, args, { db, pubsub }, info) {
-    //Find the review by its ID
-    const review = db.reviews.find((review) => {
-      return review.id === args.id;
+    //If review not found
+    if (!reviewExists) {
+      throw new Error("Review not found");
+    }
+
+    //Delete the review using Prisma
+    const deletedReview = await prisma.review.delete({
+      where: {
+        id: reviewId, //Use integer reviewId
+      },
     });
 
-    //If review is not found
-    if (!review) {
+    //Publish the deleted review to the pubsub model
+    pubsub.publish(`reviewChannel_${deletedReview.productID}`, {
+      review: {
+        mutation: "DELETED",
+        data: deletedReview,
+      },
+    });
+
+    return deletedReview;
+  },
+
+  async updateReview(parent, args, { prisma, pubsub }, info) {
+    //Convert Id to integer
+    const reviewId = parseInt(args.id, 10);
+    const productId = parseInt(args.data.productID, 10);
+    const userId = parseInt(args.data.userID, 10);
+
+    //Validate if the review exists using Prisma
+    const reviewExists = await prisma.review.findUnique({
+      where: {
+        id: reviewId, //Use integer reviewId
+      },
+    });
+
+    //If review not found
+    if (!reviewExists) {
       throw new Error("Review not found");
     }
 
     //Validate the provided product ID (if any)
     if (args.data.productID) {
-      const productExists = db.products.some((product) => {
-        return product.id === args.data.productID;
+      const productExists = await prisma.product.findUnique({
+        where: {
+          id: productId, //Use integer productId
+        },
       });
+
+      //If product does not exist
       if (!productExists) {
         throw new Error("Invalid product ID");
       }
@@ -556,122 +719,126 @@ const Mutation = {
 
     //Validate the provided user ID (if any)
     if (args.data.userID) {
-      const userExists = db.users.some((user) => {
-        return user.id === args.data.userID;
+      const userExists = await prisma.user.findUnique({
+        where: {
+          id: userId,
+        },
       });
+
+      //If user does not exist
       if (!userExists) {
         throw new Error("Invalid user ID");
       }
     }
 
-    //Update the fields if they are provided
-    if (typeof args.data.rating === "number") {
-      if (args.data.rating < 0 || args.data.rating > 5) {
-        throw new Error("Rating must be between 0 and 5");
-      }
-      review.rating = args.data.rating;
-    }
-    if (typeof args.data.comment === "string") {
-      review.comment = args.data.comment;
-    }
-    if (args.data.productID) {
-      review.productID = args.data.productID;
-    }
-    if (args.data.userID) {
-      review.userID = args.data.userID;
-    }
+    //Update the review using Prisma
+    const updatedReview = await prisma.review.update({
+      where: {
+        id: reviewId, //Use integer reviewId
+      },
+      data: args.data,
+    });
 
-    //Publish the review update event
-    pubsub.publish(`reviewChannel_${review.productID}`, {
+    //Publish the updated review to the pubsub model
+    pubsub.publish(`reviewChannel_${updatedReview.productID}`, {
       review: {
         mutation: "UPDATED",
-        data: review,
+        data: updatedReview,
       },
     });
 
-    return review;
+    return updatedReview;
   },
 
-  createCompany(parent, args, { db }, info) {
-    //Validate that the company name given through the args does not actually exist
-    const companyExists = db.companies.some((company) => {
-      return company.name.toLowerCase() === args.data.name.toLowerCase();
+  async createCompany(parent, args, { prisma }, info) {
+    //Validate that the company name does not already exist
+    const companyExists = await prisma.company.findUnique({
+      where: {
+        name: args.data.name,
+      },
     });
 
-    //If company name already exists
+    //If the company name already exists
     if (companyExists) {
       throw new Error("Company name already exists");
     }
 
-    //Create a new company object
-    const company = {
-      //Create a unique ID for company
-      id: uuidv4(),
-      ...args.data,
-    };
-
-    //Add the new company to the companies array
-    db.companies.push(company);
+    //Create the company using Prisma
+    const company = await prisma.company.create({
+      data: {
+        ...args.data,
+      },
+    });
 
     return company;
   },
-  deleteCompany(parent, args, { db }, info) {
-    //Validate if the company exists
-    const companyIndex = db.companies.findIndex((company) => {
-      return company.id === args.id;
-    });
 
-    //If company does not exist
-    if (companyIndex === -1) {
-      throw new Error("Company not found");
-    }
-
-    //Remove the company
-    const deletedCompany = db.companies.splice(companyIndex, 1); //An array
-
-    //Clean up related orders
-    db.orders = db.orders.filter((order) => {
-      return order.companyID !== args.id;
-    });
-
-    return deletedCompany[0];
-  },
-  updateCompany(parent, args, { db }, info) {
-    //Find the company by its ID
-    const company = db.companies.find((company) => {
-      return company.id === args.id;
+  async deleteCompany(parent, args, { prisma }, info) {
+    //Validate if the company name exists using Prisma
+    const companyExists = await prisma.company.findUnique({
+      where: {
+        id: args.id,
+      },
     });
 
     //If the company is not found
-    if (!company) {
+    if (!companyExists) {
       throw new Error("Company not found");
     }
 
-    //Validate the provided name (if any)
+    //Delete the company using Prisma
+    const deletedCompany = await prisma.company.delete({
+      where: {
+        id: args.id,
+      },
+    });
+
+    //Clean up related orders using Prisma
+    await prisma.order.deleteMany({
+      where: {
+        companyId: args.id,
+      },
+    });
+
+    return deletedCompany;
+  },
+
+  async updateCompany(parent, args, { prisma }, info) {
+    //Find the company by its ID using Prisma
+    const companyExists = await prisma.company.findUnique({
+      where: {
+        id: args.id,
+      },
+    });
+
+    //If company not found
+    if (!companyExists) {
+      throw new Error("Company not found");
+    }
+
+    //If the new name is provided, validate that it doesn't already exist
     if (args.data.name) {
-      const nameExists = db.companies.some((company) => {
-        return (
-          company.name.toLowerCase() === args.data.name.toLowerCase() &&
-          company.id !== args.id
-        );
+      const nameExists = await prisma.company.findUnique({
+        where: {
+          name: args.data.name,
+        },
       });
-      if (nameExists) {
+
+      //If name exists
+      if (nameExists && nameExists.id !== args.id) {
         throw new Error("Company name already exists");
       }
     }
 
-    //Update the fields if they are provided
-    if (typeof args.data.name === "string") {
-      company.name = args.data.name;
-    }
-    if (typeof args.data.location === "string") {
-      company.location = args.data.location;
-    }
-    if (typeof args.data.industry === "string") {
-      company.industry = args.data.industry;
-    }
+    //Update the company name using Prisma
+    const updatedCompany = await prisma.company.update({
+      where: {
+        id: args.id,
+      },
+      data: args.data,
+    });
 
-    return company;
+    return updatedCompany;
   },
 };
 
