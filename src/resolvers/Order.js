@@ -1,17 +1,23 @@
 const Order = {
-  user(parent, args, { db }, info) {
-    return db.users.find((user) => {
-      return user.id === parent.userID;
+  user(parent, args, { prisma }, info) {
+    return prisma.user.findUnique({
+      where: {
+        id: parent.userId,
+      },
     });
   },
-  product(parent, args, { db }, info) {
-    return db.products.find((product) => {
-      return product.id === parent.productID;
+  product(parent, args, { prisma }, info) {
+    return prisma.product.findUnique({
+      where: {
+        id: parent.productId,
+      },
     });
   },
-  company(parent, args, { db }, info) {
-    return db.companies.find((company) => {
-      return company.id === parent.companyID;
+  company(parent, args, { prisma }, info) {
+    return prisma.company.findUnique({
+      where: {
+        id: parent.companyId,
+      },
     });
   },
 };
