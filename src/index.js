@@ -1,4 +1,5 @@
 import { GraphQLServer, PubSub } from "graphql-yoga";
+import { Prisma, PrismaClient } from "@prisma/client"; //Import Prisma client
 import Query from "./resolvers/Query";
 import Mutation from "./resolvers/Mutation";
 import Product from "./resolvers/Product";
@@ -10,6 +11,9 @@ import Subscription from "./resolvers/Subscription";
 
 //Creating an instance of PubSub
 const pubsub = new PubSub();
+
+//Creating an instance of prisma client
+const prisma = new PrismaClient();
 
 //Creating the server
 const server = new GraphQLServer({
@@ -25,7 +29,7 @@ const server = new GraphQLServer({
   },
   //Pass the mock database and PubSub instance to all resolvers
   context: {
-    db,
+    prisma,
     pubsub,
   },
 });
