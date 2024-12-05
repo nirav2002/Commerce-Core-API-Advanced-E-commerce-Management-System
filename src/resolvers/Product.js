@@ -1,18 +1,27 @@
 const Product = {
-  category(parent, args, { db }, info) {
-    return db.categories.find((category) => {
-      return category.id === parent.categoryID;
+  category(parent, args, { prisma }, info) {
+    // Directly use parent.categoryID for the category query
+    if (!parent.categoryID) {
+      throw new Error("Category ID is missing.");
+    }
+    return prisma.category.findUnique({
+      where: {
+        id: parent.categoryID, // Fetch the category by parent.categoryID
+      },
     });
   },
-  orders(parent, args, { db }, info) {
-    return db.orders.filter((order) => {
-      return order.productID === parent.id;
+  orders(parent, args, { prisma }, info) {
+    return prisma.order.findMany({
+      where: {
+        productId: parent.id,
+      },
     });
   },
-  reviews(parent, args, { db }, info) {
-    return db.reviews.filter((review) => {
-      //Match the associated product ID on reviews to the productID (parent's)
-      return (review.productID = parent.id);
+  reviews(parent, args, { prisma }, info) {
+    return prisma.review.findMany({
+      where: {
+        productId: parent.id,
+      },
     });
   },
 };
