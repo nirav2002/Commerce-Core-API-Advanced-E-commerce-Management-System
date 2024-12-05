@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
+  description String?
+  products    Product[] // Relation to Product
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  name        String
+  price       Float
+  inStock     Boolean
+  category    Category? @relation(fields: [categoryID], references: [id])
+  categoryID  Int? //categoryID instead of categoryId
+  orders      Order[]   // Relation to Order
+  reviews     Review[]  // Relation to Review
+
+  @@unique([name, categoryID]) //Ensure combination of name and category is unique
+}
+
+model User {
+  id       Int      @id @default(autoincrement())
+  name     String
+  email    String   @unique
+  age      Int?
+  orders   Order[]  // Relation to Order
+  reviews  Review[] // Relation to Review
+}
+
+model Order {
+  id         Int      @id @default(autoincrement())
+  totalAmount Float
+  status     String
+  orderDate  String
+  user       User    @relation(fields: [userId], references: [id])
+  userId     Int
+  product    Product @relation(fields: [productId], references: [id])
+  productId  Int
+  company    Company @relation(fields: [companyId], references: [id])
+  companyId  Int
+}
+
+model Review {
+  id        Int      @id @default(autoincrement())
+  rating    Float
+  comment   String?
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  product   Product  @relation(fields: [productId], references: [id])
+  productId Int
+
+  @@unique([userId, productId]) //This ensures a user can only leave one review per product
+}
+
+model Company {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique
+  location  String
+  industry  String
+  orders    Order[]   // Relation to Order
+}
