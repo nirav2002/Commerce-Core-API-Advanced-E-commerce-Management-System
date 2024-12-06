@@ -2,7 +2,6 @@ const Mutation = {
   async createProduct(parent, args, { prisma, pubsub }, info) {
     //Validate that the categoryID exists using Prisma
     const categoryID = parseInt(args.data.categoryID, 10);
-    console.log("First CategoryID ", typeof categoryID);
 
     const categoryExists = await prisma.category.findUnique({
       where: {
@@ -14,9 +13,6 @@ const Mutation = {
     if (!categoryExists) {
       throw new Error("Category not found");
     }
-
-    console.log("categoryID:", args.data.categoryID);
-    console.log("Type: ", typeof args.data.categoryID);
 
     //Create the product using Prisma
     const product = await prisma.product.create({
@@ -572,7 +568,26 @@ const Mutation = {
       where: {
         id: orderId, //Use the integer orderId
       },
-      data: args.data,
+      data: {
+        totalAmount: args.data.totalAmount,
+        status: args.data.status,
+        orderDate: args.data.orderDate,
+        user: {
+          connect: {
+            id: userId,
+          },
+        },
+        product: {
+          connect: {
+            id: productId,
+          },
+        },
+        company: {
+          connect: {
+            id: companyId,
+          },
+        },
+      },
     });
 
     //Publish the updated order to pubsub model
@@ -660,10 +675,15 @@ const Mutation = {
       },
     });
 
+    console.log(reviewExists);
+
     //If review not found
     if (!reviewExists) {
       throw new Error("Review not found");
     }
+
+    //Converting to be deleted Review's product ID from integer to string for subscription
+    const productID = reviewExists.productId.toString();
 
     //Delete the review using Prisma
     const deletedReview = await prisma.review.delete({
@@ -673,7 +693,7 @@ const Mutation = {
     });
 
     //Publish the deleted review to the pubsub model
-    pubsub.publish(`reviewChannel_${deletedReview.productID}`, {
+    pubsub.publish(`reviewChannel_${productID}`, {
       review: {
         mutation: "DELETED",
         data: deletedReview,
@@ -686,8 +706,8 @@ const Mutation = {
   async updateReview(parent, args, { prisma, pubsub }, info) {
     //Convert Id to integer
     const reviewId = parseInt(args.id, 10);
-    const productId = parseInt(args.data.productID, 10);
-    const userId = parseInt(args.data.userID, 10);
+    const productId = parseInt(args.data.productID, 10); //If given as input
+    const userId = parseInt(args.data.userID, 10); //If given as input
 
     //Validate if the review exists using Prisma
     const reviewExists = await prisma.review.findUnique({
@@ -737,8 +757,11 @@ const Mutation = {
       data: args.data,
     });
 
+    //To convert productId from Integer to String for subscritions
+    const productID = reviewExists.productId.toString();
+
     //Publish the updated review to the pubsub model
-    pubsub.publish(`reviewChannel_${updatedReview.productID}`, {
+    pubsub.publish(`reviewChannel_${productID}`, {
       review: {
         mutation: "UPDATED",
         data: updatedReview,
