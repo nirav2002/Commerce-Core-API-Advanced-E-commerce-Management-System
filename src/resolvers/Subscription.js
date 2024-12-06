@@ -1,23 +1,28 @@
 const Subscription = {
   order: {
-    subscribe(parent, args, { pubsub }, info) {
+    async subscribe(parent, args, { pubsub }, info) {
       //Specify the channel name for the subscription
       return pubsub.asyncIterator("orderChannel");
     },
   },
+
   product: {
-    subscribe(parent, args, { pubsub }, info) {
+    async subscribe(parent, args, { pubsub }, info) {
       //Specify the channel name for the subscription
       return pubsub.asyncIterator("productChannel");
     },
   },
+
   review: {
-    subscribe(parent, args, { db, pubsub }, info) {
-      //Validate if the product exists
-      const product = db.products.find((product) => {
-        return product.id === args.productID;
+    async subscribe(parent, args, { prisma, pubsub }, info) {
+      //Validate if the product exists using Prisma
+      const product = await prisma.product.findUnique({
+        where: {
+          id: parseInt(args.productID, 10),
+        },
       });
 
+      //If no product found
       if (!product) {
         throw new Error("Product not found");
       }
