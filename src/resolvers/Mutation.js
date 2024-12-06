@@ -1,5 +1,3 @@
-import uuidv4 from "uuid";
-
 const Mutation = {
   async createProduct(parent, args, { prisma, pubsub }, info) {
     //Validate that the categoryID exists using Prisma
