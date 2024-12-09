@@ -32,6 +32,7 @@ model User {
   name     String
   email    String   @unique
   age      Int?
+  role     String   @default("user")  //Add role with default value
   orders   Order[]  // Relation to Order
   reviews  Review[] // Relation to Review
 }

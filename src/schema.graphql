@@ -61,6 +61,7 @@ type User {
   name: String!
   email: String!
   age: Int
+  role: String!
   orders: [Order!]!
   reviews: [Review!]!
 }
@@ -118,7 +119,8 @@ input UpdateCategoryInput {
 input CreateUserInput {
   name: String!
   email: String
-  age: Int
+  age: Int #Optional field
+  role: String #Optional field
 }
 
 input UpdateUserInput {
