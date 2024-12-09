@@ -33,6 +33,7 @@ model User {
   email    String   @unique
   age      Int?
   role     String   @default("user")  //Add role with default value
+  password String   //New field for storing hashed passwords
   orders   Order[]  // Relation to Order
   reviews  Review[] // Relation to Review
 }
