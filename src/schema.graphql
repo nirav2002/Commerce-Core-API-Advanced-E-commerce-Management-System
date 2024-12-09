@@ -127,6 +127,7 @@ input UpdateUserInput {
   name: String
   email: String
   age: Int
+  role: String
 }
 
 input CreateOrderInput {
