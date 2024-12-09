@@ -298,7 +298,7 @@ const Mutation = {
     return updatedCategory;
   },
 
-  async createUser(parent, args, { prisma }, info) {
+  async createUser(parent, args, { prisma, bcrypt }, info) {
     //To check if the email entered is unique or not
     const emailExists = await prisma.user.findUnique({
       where: {
@@ -326,10 +326,14 @@ const Mutation = {
       throw new Error("Password must contain at least one number");
     }
 
+    //Hash the password using bcrypt
+    const hashedPassword = await bcrypt.hash(args.data.password, 10);
+
     //Create the user using Prisma
     const user = await prisma.user.create({
       data: {
         ...args.data,
+        password: hashedPassword, //Replace plain password with hashed password
       },
     });
 
@@ -375,7 +379,7 @@ const Mutation = {
     return deletedUser;
   },
 
-  async updateUser(parent, args, { prisma }, info) {
+  async updateUser(parent, args, { prisma, bcrypt }, info) {
     //Convert id to integer
     const userId = parseInt(args.id, 10);
 
@@ -422,10 +426,18 @@ const Mutation = {
         throw new Error("Password must contain at least one number");
       }
 
-      //Validate password is not the same as the current password
-      if (args.data.password === user.password) {
+      //Validate password is not the same as the current password using bcrypt method
+      //bcrypt method hashes our new password using the same salt and hashing algorithm, and then compares it to the stored user's password
+      const isSamePassword = await bcrypt.compare(
+        args.data.password,
+        user.password
+      );
+      if (isSamePassword) {
         throw new Error("New password cannot be the same as the old password");
       }
+
+      //Hash the new password
+      args.data.password = await bcrypt.hash(args.data.password, 10);
     }
 
     //Update the fields
