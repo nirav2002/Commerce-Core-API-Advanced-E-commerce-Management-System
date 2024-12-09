@@ -17,7 +17,11 @@ async function categories(parent, args, { prisma }, info) {
 }
 
 async function users(parent, args, { prisma }, info) {
-  return await prisma.user.findMany();
+  return await prisma.user.findMany({
+    orderBy: {
+      id: "asc", //Sort users by ID in ascending order
+    },
+  });
 }
 
 async function orders(parent, args, { prisma }, info) {
