@@ -1,5 +1,6 @@
 import { GraphQLServer, PubSub } from "graphql-yoga";
 import { Prisma, PrismaClient } from "@prisma/client"; //Import Prisma client
+import bcrypt from "bcrypt"; //Import bcrypt
 import Query from "./resolvers/Query";
 import Mutation from "./resolvers/Mutation";
 import Product from "./resolvers/Product";
@@ -31,6 +32,7 @@ const server = new GraphQLServer({
   context: {
     prisma,
     pubsub,
+    bcrypt, //Encryption purposes
   },
 });
 
