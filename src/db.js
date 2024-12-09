@@ -1,3 +1,5 @@
+//db.js file contains information that is stored in our postgres database.
+
 //Demo products data
 const products = [
   {
@@ -99,6 +101,36 @@ const users = [
     id: "4",
     name: "Diana Price",
     email: "diana.prince@example.com",
+  },
+  {
+    id: "5",
+    name: "Eva Williams",
+    email: "eva.williams@example.com",
+  },
+  {
+    id: "6",
+    name: "Liam Taylor",
+    email: "liam.taylor@example.com",
+  },
+  {
+    id: "7",
+    name: "Sophia Martinez",
+    email: "sophia.martinez@example.com",
+  },
+  {
+    id: "8",
+    name: "James Wilson",
+    email: "james.wilson@example.com",
+  },
+  {
+    id: "9",
+    name: "Olivia Davis",
+    email: "olivia.davis@example.com",
+  },
+  {
+    id: "10",
+    name: "Ethan Lee",
+    email: "ethan.lee@example.com",
   },
 ];
 
