@@ -316,6 +316,16 @@ const Mutation = {
       throw new Error("Invalid role. Role must be user or admin only");
     }
 
+    //Validate password length (at least 6 characters)
+    if (args.data.password.length < 6) {
+      throw new Error("Password must be at least 6 characters long");
+    }
+
+    //Validate password contains at least one number
+    if (!/\d/.test(args.data.password)) {
+      throw new Error("Password must contain at least one number");
+    }
+
     //Create the user using Prisma
     const user = await prisma.user.create({
       data: {
@@ -397,6 +407,24 @@ const Mutation = {
       //If email exists
       if (emailExists && emailExists.id !== args.id) {
         throw new Error("Email already in use by another user");
+      }
+    }
+
+    //Handle password updates with validations
+    if (args.data.password) {
+      //Validate password length (at least 6 characters)
+      if (args.data.password.length < 6) {
+        throw new Error("Password must be at least 6 characters long");
+      }
+
+      //Validate password contains at least one number
+      if (!/\d/.test(args.data.password)) {
+        throw new Error("Password must contain at least one number");
+      }
+
+      //Validate password is not the same as the current password
+      if (args.data.password === user.password) {
+        throw new Error("New password cannot be the same as the old password");
       }
     }
 
