@@ -60,6 +60,7 @@ type User {
   id: ID!
   name: String!
   email: String!
+  password: String! #Required for login and authentication purposes
   age: Int
   role: String!
   orders: [Order!]!
@@ -119,6 +120,7 @@ input UpdateCategoryInput {
 input CreateUserInput {
   name: String!
   email: String
+  password: String! #Required for login and authentication purposes
   age: Int #Optional field
   role: String #Optional field
 }
@@ -126,6 +128,7 @@ input CreateUserInput {
 input UpdateUserInput {
   name: String
   email: String
+  password: String
   age: Int
   role: String
 }
