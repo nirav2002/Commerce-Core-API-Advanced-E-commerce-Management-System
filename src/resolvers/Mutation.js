@@ -311,6 +311,11 @@ const Mutation = {
       throw new Error("Email already in use");
     }
 
+    //Validate the role through args (if provided)
+    if (args.data.role && !["user", "admin"].includes(args.data.role)) {
+      throw new Error("Invalid role. Role must be user or admin only");
+    }
+
     //Create the user using Prisma
     const user = await prisma.user.create({
       data: {
@@ -374,6 +379,11 @@ const Mutation = {
     //If user not found
     if (!user) {
       throw new Error("User not found");
+    }
+
+    //If the role is provided through args, validate it
+    if (args.data.role && !["user", "admin"].includes(args.data.role)) {
+      throw new Error("Invalid role. Role must be user or admin");
     }
 
     //If the email is provided and already exists in another user, throw an error
