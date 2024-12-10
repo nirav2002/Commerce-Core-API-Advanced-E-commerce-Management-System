@@ -8,6 +8,8 @@ type Query {
 }
 
 type Mutation {
+  login(email: String!, password: String!): AuthPayload!
+
   createProduct(data: CreateProductInput!): Product!
   deleteProduct(id: ID!): Product!
   updateProduct(id: ID!, data: UpdateProductInput!): Product!
@@ -90,6 +92,10 @@ type Company {
   name: String!
   location: String!
   industry: String!
+}
+
+type AuthPayload {
+  token: String!
 }
 
 input CreateProductInput {
