@@ -35,7 +35,20 @@ const Mutation = {
     return { token };
   },
 
-  async createProduct(parent, args, { prisma, pubsub }, info) {
+  async createProduct(parent, args, { prisma, pubsub, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can create a product
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to create a product");
+    }
+
     //Validate that the categoryID exists using Prisma
     const categoryID = parseInt(args.data.categoryID, 10);
 
@@ -75,7 +88,20 @@ const Mutation = {
     return product;
   },
 
-  async deleteProduct(parent, args, { prisma, pubsub }, info) {
+  async deleteProduct(parent, args, { prisma, pubsub, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can delete a product
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to delete a product");
+    }
+
     //Ensure that id is an integer
     const productId = parseInt(args.id, 10);
 
@@ -123,7 +149,20 @@ const Mutation = {
     return deletedProduct;
   },
 
-  async updateProduct(parent, args, { prisma, pubsub }, info) {
+  async updateProduct(parent, args, { prisma, pubsub, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can update a product
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to update a product");
+    }
+
     //Convert the id to an integer
     const productId = parseInt(args.id, 10);
 
@@ -373,7 +412,20 @@ const Mutation = {
     return updatedCategory;
   },
 
-  async createUser(parent, args, { prisma, bcrypt }, info) {
+  async createUser(parent, args, { prisma, bcrypt, request }, info) {
+    //Extract and verify the token
+    const userToken = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!userToken) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can create a user
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to create a user");
+    }
+
     //To check if the email entered is unique or not
     const emailExists = await prisma.user.findUnique({
       where: {
@@ -415,7 +467,15 @@ const Mutation = {
     return user;
   },
 
-  async deleteUser(parent, args, { prisma }, info) {
+  async deleteUser(parent, args, { prisma, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
     //Convert id to an integer
     const userId = parseInt(args.id, 10);
 
@@ -429,6 +489,11 @@ const Mutation = {
     //If user not found
     if (!userExists) {
       throw new Error("User not found");
+    }
+
+    //Authorization: Only the user themselves or an admin can delete the user
+    if (parseInt(user.id, 10) !== userId && user.role !== "admin") {
+      throw new Error("You do not have permission to delete this user");
     }
 
     //Delete the user using Prisma
@@ -455,6 +520,14 @@ const Mutation = {
   },
 
   async updateUser(parent, args, { prisma, bcrypt }, info) {
+    //Extract and verify the token
+    const authUser = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!authUser) {
+      throw new Error("Authentication required");
+    }
+
     //Convert id to integer
     const userId = parseInt(args.id, 10);
 
@@ -468,6 +541,11 @@ const Mutation = {
     //If user not found
     if (!user) {
       throw new Error("User not found");
+    }
+
+    //Authorization: Only the user themselves or an admin can update the user
+    if (parseInt(authUser.id, 10) !== userId && authUser.role !== "admin") {
+      throw new Error("You do not have permission to update this user");
     }
 
     //If the role is provided through args, validate it
