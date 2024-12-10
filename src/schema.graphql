@@ -1,10 +1,22 @@
 type Query {
-  products: [Product!]!
+  products(page: Int, limit: Int): PaginatedProducts!
   categories: [Category!]!
-  users: [User!]!
+  users(page: Int, limit: Int): PaginatedUsers!
   orders: [Order!]!
   reviews: [Review!]!
   companies: [Company!]!
+}
+
+type PaginatedProducts {
+  items: [Product!]!
+  prevPage: Int
+  nextPage: Int
+}
+
+type PaginatedUsers {
+  items: [User!]!
+  prevPage: Int
+  nextPage: Int
 }
 
 type Mutation {
