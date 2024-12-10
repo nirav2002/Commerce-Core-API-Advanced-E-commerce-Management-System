@@ -1,6 +1,7 @@
 import { GraphQLServer, PubSub } from "graphql-yoga";
 import { Prisma, PrismaClient } from "@prisma/client"; //Import Prisma client
 import bcrypt from "bcrypt"; //Import bcrypt
+import jwt from "jsonwebtoken"; //Import jwt
 import Query from "./resolvers/Query";
 import Mutation from "./resolvers/Mutation";
 import Product from "./resolvers/Product";
@@ -29,10 +30,14 @@ const server = new GraphQLServer({
     Subscription,
   },
   //Pass the mock database and PubSub instance to all resolvers
-  context: {
-    prisma,
-    pubsub,
-    bcrypt, //Encryption purposes
+  context: function ({ request }) {
+    return {
+      prisma,
+      pubsub,
+      bcrypt, //Encryption purposes
+      jwt, //JSON Web Token
+      request, //Include the request object
+    };
   },
 });
 
