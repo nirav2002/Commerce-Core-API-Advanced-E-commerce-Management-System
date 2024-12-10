@@ -2,12 +2,26 @@ async function products(parent, args, { prisma }, info) {
   const page = args.page || 1; //Default to page 1
   const limit = args.limit || 4; //Default to 4 items per page
   const skip = (page - 1) * limit; //Calculate the number of items to skip
+  const searchTerm = args.search || ""; //Default to an empty string if no search term is provided
 
-  //Get total count of products
-  const totalCount = await prisma.product.count();
+  //Count total matching products
+  const totalCount = await prisma.product.count({
+    where: {
+      name: {
+        startsWith: searchTerm, //Search products whose name contains the searchTerm
+        mode: "insensitive",
+      },
+    },
+  });
 
-  //Fetch the paginated products
+  //Fetch paginated and filtered products
   const items = await prisma.product.findMany({
+    where: {
+      name: {
+        startsWith: searchTerm, //Apply search filter
+        mode: "insensitive",
+      },
+    },
     skip,
     take: limit,
   });
