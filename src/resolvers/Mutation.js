@@ -175,7 +175,20 @@ const Mutation = {
     return updatedProduct;
   },
 
-  async createCategory(parent, args, { prisma, pubsub }, info) {
+  async createCategory(parent, args, { prisma, pubsub, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can create a category
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to create a category");
+    }
+
     const productIDs = args.data.products || []; // Default to empty array if not provided
 
     // Validate if the product IDs provided exist in the products
@@ -219,7 +232,20 @@ const Mutation = {
     return category;
   },
 
-  async deleteCategory(parent, args, { prisma, pubsub }, info) {
+  async deleteCategory(parent, args, { prisma, pubsub, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can delete a category
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to delete a category");
+    }
+
     //Converting categoryId to an integer
     const categoryId = parseInt(args.id, 10);
 
@@ -277,7 +303,20 @@ const Mutation = {
     return deletedCategory;
   },
 
-  async updateCategory(parent, args, { prisma, pubsub }, info) {
+  async updateCategory(parent, args, { prisma, pubsub, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can update a category
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to update a category");
+    }
+
     //Converting categoryId to an integer
     const categoryId = parseInt(args.id, 10);
 
@@ -880,7 +919,20 @@ const Mutation = {
     return updatedReview;
   },
 
-  async createCompany(parent, args, { prisma }, info) {
+  async createCompany(parent, args, { prisma, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can create a company
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to create a company");
+    }
+
     //Validate that the company name does not already exist
     const companyExists = await prisma.company.findUnique({
       where: {
@@ -903,7 +955,20 @@ const Mutation = {
     return company;
   },
 
-  async deleteCompany(parent, args, { prisma }, info) {
+  async deleteCompany(parent, args, { prisma, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can delete a company
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to delete a company");
+    }
+
     //Validate if the company name exists using Prisma
     const companyExists = await prisma.company.findUnique({
       where: {
@@ -933,7 +998,20 @@ const Mutation = {
     return deletedCompany;
   },
 
-  async updateCompany(parent, args, { prisma }, info) {
+  async updateCompany(parent, args, { prisma, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If no valid token is provided
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
+    //Authorization: Only admins can update a company
+    if (user.role !== "admin") {
+      throw new Error("You do not have permission to update a company");
+    }
+
     //Find the company by its ID using Prisma
     const companyExists = await prisma.company.findUnique({
       where: {
