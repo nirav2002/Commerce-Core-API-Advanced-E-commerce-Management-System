@@ -1,4 +1,40 @@
+import { verifyToken } from "../utils/auth";
+
 const Mutation = {
+  async login(parent, args, { prisma, bcrypt, jwt }, info) {
+    //Fetch the user by email
+    const user = await prisma.user.findUnique({
+      where: {
+        email: args.email,
+      },
+    });
+
+    //If user does not exist
+    if (!user) {
+      throw new Error("Invalid email or password");
+    }
+
+    //Verify the password
+    const isPasswordValid = await bcrypt.compare(args.password, user.password);
+    if (!isPasswordValid) {
+      throw new Error("Invalid email or password");
+    }
+
+    //Generate a JWT
+    const token = jwt.sign(
+      {
+        id: user.id,
+        role: user.role,
+      },
+      process.env.JWT_SECRET, //Secret key for signing
+      {
+        expiresIn: "2h",
+      }
+    );
+
+    return { token };
+  },
+
   async createProduct(parent, args, { prisma, pubsub }, info) {
     //Validate that the categoryID exists using Prisma
     const categoryID = parseInt(args.data.categoryID, 10);
@@ -714,7 +750,14 @@ const Mutation = {
     return review;
   },
 
-  async deleteReview(parent, args, { prisma, pubsub }, info) {
+  async deleteReview(parent, args, { prisma, pubsub, request }, info) {
+    //Extract and verify the token provided by a user
+    const user = verifyToken(request.headers.authorization);
+
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
     //Convert reviewId to integer
     const reviewId = parseInt(args.id, 10);
 
@@ -725,11 +768,14 @@ const Mutation = {
       },
     });
 
-    console.log(reviewExists);
-
     //If review not found
     if (!reviewExists) {
       throw new Error("Review not found");
+    }
+
+    //Authorization:  Admins can delete any review, users can delete only their own
+    if (user.role !== "admin" && reviewExists.userId !== user.id) {
+      throw new Error("You do not have permission to delete this review");
     }
 
     //Converting to be deleted Review's product ID from integer to string for subscription
