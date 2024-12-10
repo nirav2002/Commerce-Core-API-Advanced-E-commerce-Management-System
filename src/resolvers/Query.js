@@ -1,5 +1,38 @@
 async function products(parent, args, { prisma }, info) {
-  return await prisma.product.findMany();
+  const page = args.page || 1; //Default to page 1
+  const limit = args.limit || 4; //Default to 4 items per page
+  const skip = (page - 1) * limit; //Calculate the number of items to skip
+
+  //Get total count of products
+  const totalCount = await prisma.product.count();
+
+  //Fetch the paginated products
+  const items = await prisma.product.findMany({
+    skip,
+    take: limit,
+  });
+
+  //Calculate previous and next page numbers
+  let prevPage;
+  let nextPage;
+
+  if (page > 1) {
+    prevPage = page - 1;
+  } else {
+    prevPage = null;
+  }
+
+  if (skip + limit < totalCount) {
+    nextPage = page + 1;
+  } else {
+    nextPage = null;
+  }
+
+  return {
+    items,
+    prevPage,
+    nextPage,
+  };
 }
 
 async function categories(parent, args, { prisma }, info) {
@@ -17,11 +50,43 @@ async function categories(parent, args, { prisma }, info) {
 }
 
 async function users(parent, args, { prisma }, info) {
-  return await prisma.user.findMany({
+  const page = args.page || 1; //Default to page 1
+  const limit = args.limit || 4; //Default to 4 items per page
+  const skip = (page - 1) * limit; //Calculate the number of items to skip
+
+  //Get total count of users
+  const totalCount = await prisma.user.count();
+
+  //Fetch the paginated users
+  const items = await prisma.user.findMany({
+    skip,
+    take: limit,
     orderBy: {
       id: "asc", //Sort users by ID in ascending order
     },
   });
+
+  //Calculate previous and next page numbers
+  let prevPage;
+  let nextPage;
+
+  if (page > 1) {
+    prevPage = page - 1;
+  } else {
+    prevPage = null;
+  }
+
+  if (skip + limit < totalCount) {
+    nextPage = page + 1;
+  } else {
+    nextPage = null;
+  }
+
+  return {
+    items,
+    prevPage,
+    nextPage,
+  };
 }
 
 async function orders(parent, args, { prisma }, info) {
