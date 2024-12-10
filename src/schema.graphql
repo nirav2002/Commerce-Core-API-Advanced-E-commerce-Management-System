@@ -1,5 +1,5 @@
 type Query {
-  products(page: Int, limit: Int): PaginatedProducts!
+  products(page: Int, limit: Int, search: String): PaginatedProducts!
   categories: [Category!]!
   users(page: Int, limit: Int): PaginatedUsers!
   orders: [Order!]!
