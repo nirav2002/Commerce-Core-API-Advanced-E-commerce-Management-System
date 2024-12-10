@@ -799,7 +799,15 @@ const Mutation = {
     return deletedReview;
   },
 
-  async updateReview(parent, args, { prisma, pubsub }, info) {
+  async updateReview(parent, args, { prisma, pubsub, request }, info) {
+    //Extract and verify the token
+    const user = verifyToken(request.headers.authorization);
+
+    //If authorization field does not exist (No Bearer token provided in headers by user)
+    if (!user) {
+      throw new Error("Authentication required");
+    }
+
     //Convert Id to integer
     const reviewId = parseInt(args.id, 10);
     const productId = parseInt(args.data.productID, 10); //If given as input
@@ -815,6 +823,11 @@ const Mutation = {
     //If review not found
     if (!reviewExists) {
       throw new Error("Review not found");
+    }
+
+    //Authorization: Admins can update any review, users can update only their own
+    if (user.role !== "admin" && reviewExists.userId !== user.id) {
+      throw new Error("You do not have permission to update this review");
     }
 
     //Validate the provided product ID (if any)
