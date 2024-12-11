@@ -3,6 +3,7 @@ import { Prisma, PrismaClient } from "@prisma/client"; //Import Prisma client
 import bcrypt from "bcrypt"; //Import bcrypt
 import jwt from "jsonwebtoken"; //Import jwt
 import rateLimit from "express-rate-limit"; //Import the rate-limiting middleware
+import logger from "./utils/logger"; //Import logger and add it to context object
 
 import Query from "./resolvers/Query";
 import Mutation from "./resolvers/Mutation";
@@ -46,6 +47,7 @@ const server = new GraphQLServer({
       bcrypt, //Encryption purposes
       jwt, //JSON Web Token
       request, //Include the request object
+      logger, //Add the logger to the context
     };
   },
 });
