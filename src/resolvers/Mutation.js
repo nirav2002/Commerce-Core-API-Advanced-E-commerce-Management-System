@@ -492,141 +492,194 @@ const Mutation = {
     }
   },
 
-  async deleteUser(parent, args, { prisma, request }, info) {
-    //Extract and verify the token
-    const user = verifyToken(request.headers.authorization);
+  async deleteUser(parent, args, { prisma, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting user deletion process...");
 
-    //If no valid token is provided
-    if (!user) {
-      throw new Error("Authentication required");
-    }
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
 
-    //Convert id to an integer
-    const userId = parseInt(args.id, 10);
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
 
-    //Validate if the user exists using Prisma
-    const userExists = await prisma.user.findUnique({
-      where: {
-        id: userId, //Use the integer userId
-      },
-    });
+      //Convert id to an integer
+      const userId = parseInt(args.id, 10);
 
-    //If user not found
-    if (!userExists) {
-      throw new Error("User not found");
-    }
-
-    //Authorization: Only the user themselves or an admin can delete the user
-    if (parseInt(user.id, 10) !== userId && user.role !== "admin") {
-      throw new Error("You do not have permission to delete this user");
-    }
-
-    //Delete the user using Prisma
-    const deletedUser = await prisma.user.delete({
-      where: {
-        id: userId, //Use the integer userId
-      },
-    });
-
-    //Remove all orders and reviews created by the user
-    await prisma.order.deleteMany({
-      where: {
-        userId: userId, //Use the integer userId
-      },
-    });
-
-    await prisma.review.deleteMany({
-      where: {
-        userId: userId, //Use the integer userId
-      },
-    });
-
-    return deletedUser;
-  },
-
-  async updateUser(parent, args, { prisma, bcrypt }, info) {
-    //Extract and verify the token
-    const authUser = verifyToken(request.headers.authorization);
-
-    //If no valid token is provided
-    if (!authUser) {
-      throw new Error("Authentication required");
-    }
-
-    //Convert id to integer
-    const userId = parseInt(args.id, 10);
-
-    //Find the user by their ID using Prisma
-    const user = await prisma.user.findUnique({
-      where: {
-        id: userId, //Use integer userId
-      },
-    });
-
-    //If user not found
-    if (!user) {
-      throw new Error("User not found");
-    }
-
-    //Authorization: Only the user themselves or an admin can update the user
-    if (parseInt(authUser.id, 10) !== userId && authUser.role !== "admin") {
-      throw new Error("You do not have permission to update this user");
-    }
-
-    //If the role is provided through args, validate it
-    if (args.data.role && !["user", "admin"].includes(args.data.role)) {
-      throw new Error("Invalid role. Role must be user or admin");
-    }
-
-    //If the email is provided and already exists in another user, throw an error
-    if (args.data.email) {
-      const emailExists = await prisma.user.findUnique({
+      //Validate if the user exists using Prisma
+      const userExists = await prisma.user.findUnique({
         where: {
-          email: args.data.email,
+          id: userId, //Use the integer userId
         },
       });
 
-      //If email exists
-      if (emailExists && emailExists.id !== args.id) {
-        throw new Error("Email already in use by another user");
-      }
-    }
-
-    //Handle password updates with validations
-    if (args.data.password) {
-      //Validate password length (at least 6 characters)
-      if (args.data.password.length < 6) {
-        throw new Error("Password must be at least 6 characters long");
+      //If user not found
+      if (!userExists) {
+        logger.warn(`User with ID ${userId} not found`);
+        throw new Error("User not found");
       }
 
-      //Validate password contains at least one number
-      if (!/\d/.test(args.data.password)) {
-        throw new Error("Password must contain at least one number");
+      //Authorization: Only the user themselves or an admin can delete the user
+      if (parseInt(user.id, 10) !== userId && user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to delete user by ${user.id} (Role: ${user.role}). Target user ID: ${userId}`
+        );
+        throw new Error("You do not have permission to delete this user");
       }
 
-      //Validate password is not the same as the current password using bcrypt method
-      //bcrypt method hashes our new password using the same salt and hashing algorithm, and then compares it to the stored user's password
-      const isSamePassword = await bcrypt.compare(
-        args.data.password,
-        user.password
+      //Delete the user using Prisma
+      const deletedUser = await prisma.user.delete({
+        where: {
+          id: userId, //Use the integer userId
+        },
+      });
+
+      //Log successful deletion
+      logger.info(
+        `User with ID ${userId} deleted successfully by ${user.id} (Role: ${user.role})`
       );
-      if (isSamePassword) {
-        throw new Error("New password cannot be the same as the old password");
+
+      //Remove all orders and reviews created by the user
+      await prisma.order.deleteMany({
+        where: {
+          userId: userId, //Use the integer userId
+        },
+      });
+
+      await prisma.review.deleteMany({
+        where: {
+          userId: userId, //Use the integer userId
+        },
+      });
+
+      return deletedUser;
+    } catch (error) {
+      logger.error(`Error in deleteUser Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
+  },
+
+  async updateUser(parent, args, { prisma, bcrypt, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting the user update process...");
+
+    try {
+      //Extract and verify the token
+      const authUser = verifyToken(request.headers.authorization);
+
+      //If no valid token is provided
+      if (!authUser) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
       }
 
-      //Hash the new password
-      args.data.password = await bcrypt.hash(args.data.password, 10);
+      //Convert id to integer
+      const userId = parseInt(args.id, 10);
+
+      //Find the user by their ID using Prisma
+      const user = await prisma.user.findUnique({
+        where: {
+          id: userId, //Use integer userId
+        },
+      });
+
+      //If user not found
+      if (!user) {
+        logger.warn(`User with ID ${userId} not found`);
+        throw new Error("User not found");
+      }
+
+      //Authorization: Only the user themselves or an admin can update the user
+      if (parseInt(authUser.id, 10) !== userId && authUser.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to update user by ${authUser.id} (Role: ${authUser.role}). Target user ID: ${userId}`
+        );
+        throw new Error("You do not have permission to update this user");
+      }
+
+      //If the role is provided through args, validate it
+      if (args.data.role && !["user", "admin"].includes(args.data.role)) {
+        logger.warn(`Invalid role provided: ${args.data.role}`);
+        throw new Error("Invalid role. Role must be user or admin");
+      }
+
+      //If the email is provided and already exists in another user, throw an error
+      if (args.data.email) {
+        const emailExists = await prisma.user.findUnique({
+          where: {
+            email: args.data.email,
+          },
+        });
+
+        //If email exists
+        if (emailExists && emailExists.id !== args.id) {
+          logger.warn(
+            `Email already in use by another user: ${args.data.email}`
+          );
+          throw new Error("Email already in use by another user");
+        }
+      }
+
+      //Handle password updates with validations
+      if (args.data.password) {
+        //Validate password length (at least 6 characters)
+        if (args.data.password.length < 6) {
+          logger.warn(
+            `Password validation failed for user update. Password too short`
+          );
+          throw new Error("Password must be at least 6 characters long");
+        }
+
+        //Validate password contains at least one number
+        if (!/\d/.test(args.data.password)) {
+          logger.warn(
+            `Password validation failted for user update. No number in password`
+          );
+          throw new Error("Password must contain at least one number");
+        }
+
+        //Validate password is not the same as the current password using bcrypt method
+        //bcrypt method hashes our new password using the same salt and hashing algorithm, and then compares it to the stored user's password
+        const isSamePassword = await bcrypt.compare(
+          args.data.password,
+          user.password
+        );
+        if (isSamePassword) {
+          logger.warn(
+            `New password cannot be the same as the old password for user ID ${userId}`
+          );
+          throw new Error(
+            "New password cannot be the same as the old password"
+          );
+        }
+
+        //Hash the new password
+        args.data.password = await bcrypt.hash(args.data.password, 10);
+      }
+
+      //Update the fields
+      const updatedUser = await prisma.user.update({
+        where: {
+          id: userId, //Use integer userId
+        },
+        data: args.data,
+      });
+
+      //Log successful update
+      logger.info(
+        `User with ID ${userId} updated successfully by ${authUser.id} (Role: ${
+          authUser.role
+        }). Updated fields: ${Object.keys(args.data).join(", ")}`
+      );
+
+      return updatedUser;
+    } catch (error) {
+      logger.error(`Error in updateUser Mutation: ${error.message}`);
+      throw new Error(error.message);
     }
-
-    //Update the fields
-    const updatedUser = await prisma.user.update({
-      where: {
-        id: userId, //Use integer userId
-      },
-      data: args.data,
-    });
-
-    return updatedUser;
   },
 
   async createOrder(parent, args, { prisma, pubsub }, info) {
