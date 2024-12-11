@@ -67,12 +67,26 @@ async function users(parent, args, { prisma }, info) {
   const page = args.page || 1; //Default to page 1
   const limit = args.limit || 4; //Default to 4 items per page
   const skip = (page - 1) * limit; //Calculate the number of items to skip
+  const searchTerm = args.search || ""; //Default to an empty string if no search term is provided
 
-  //Get total count of users
-  const totalCount = await prisma.user.count();
+  //Count total matching users
+  const totalCount = await prisma.user.count({
+    where: {
+      name: {
+        startsWith: searchTerm, //Search users whose name starts with the searchTerm
+        mode: "insensitive", //Case-insensitive search
+      },
+    },
+  });
 
-  //Fetch the paginated users
+  //Fetch the paginated and filtered users
   const items = await prisma.user.findMany({
+    where: {
+      name: {
+        startsWith: searchTerm, //Apply search filter for name
+        mode: "insensitive",
+      },
+    },
     skip,
     take: limit,
     orderBy: {
