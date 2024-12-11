@@ -412,59 +412,84 @@ const Mutation = {
     return updatedCategory;
   },
 
-  async createUser(parent, args, { prisma, bcrypt, request }, info) {
-    //Extract and verify the token
-    const userToken = verifyToken(request.headers.authorization);
+  async createUser(parent, args, { prisma, bcrypt, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting user creation process...");
 
-    //If no valid token is provided
-    if (!userToken) {
-      throw new Error("Authentication required");
+    try {
+      //Extract and verify the token
+      const userToken = verifyToken(request.headers.authorization);
+
+      //If no valid token is provided
+      if (!userToken) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
+
+      //Authorization: Only admins can create a user
+      if (userToken.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to create a user by ${userToken.id} (Role: ${userToken.role})`
+        );
+        throw new Error("You do not have permission to create a user");
+      }
+
+      //To check if the email entered is unique or not
+      const emailExists = await prisma.user.findUnique({
+        where: {
+          email: args.data.email,
+        },
+      });
+
+      //If Email ID already exists
+      if (emailExists) {
+        logger.warn(
+          `Failed attempt to create user. Email already in use: ${args.data.email}`
+        );
+        throw new Error("Email already in use");
+      }
+
+      //Validate the role through args (if provided)
+      if (args.data.role && !["user", "admin"].includes(args.data.role)) {
+        throw new Error("Invalid role. Role must be user or admin only");
+      }
+
+      //Validate password length (at least 6 characters)
+      if (args.data.password.length < 6) {
+        logger.warn(
+          `Password validation failed for user creation. Password too short`
+        );
+        throw new Error("Password must be at least 6 characters long");
+      }
+
+      //Validate password contains at least one number
+      if (!/\d/.test(args.data.password)) {
+        logger.warn(
+          `Password validation failed for user creation. No number in password`
+        );
+        throw new Error("Password must contain at least one number");
+      }
+
+      //Hash the password using bcrypt
+      const hashedPassword = await bcrypt.hash(args.data.password, 10);
+
+      //Create the user using Prisma
+      const user = await prisma.user.create({
+        data: {
+          ...args.data,
+          password: hashedPassword, //Replace plain password with hashed password
+        },
+      });
+
+      logger.info(
+        `User created successfully by Admin ${userToken.id}. New user: ${user.name} (Email: ${user.email})`
+      );
+
+      return user;
+    } catch (error) {
+      logger.error(`Error in createUser Mutation: ${error.message}`);
+      throw new Error(error.message);
     }
-
-    //Authorization: Only admins can create a user
-    if (user.role !== "admin") {
-      throw new Error("You do not have permission to create a user");
-    }
-
-    //To check if the email entered is unique or not
-    const emailExists = await prisma.user.findUnique({
-      where: {
-        email: args.data.email,
-      },
-    });
-
-    //If Email ID already exists
-    if (emailExists) {
-      throw new Error("Email already in use");
-    }
-
-    //Validate the role through args (if provided)
-    if (args.data.role && !["user", "admin"].includes(args.data.role)) {
-      throw new Error("Invalid role. Role must be user or admin only");
-    }
-
-    //Validate password length (at least 6 characters)
-    if (args.data.password.length < 6) {
-      throw new Error("Password must be at least 6 characters long");
-    }
-
-    //Validate password contains at least one number
-    if (!/\d/.test(args.data.password)) {
-      throw new Error("Password must contain at least one number");
-    }
-
-    //Hash the password using bcrypt
-    const hashedPassword = await bcrypt.hash(args.data.password, 10);
-
-    //Create the user using Prisma
-    const user = await prisma.user.create({
-      data: {
-        ...args.data,
-        password: hashedPassword, //Replace plain password with hashed password
-      },
-    });
-
-    return user;
   },
 
   async deleteUser(parent, args, { prisma, request }, info) {
