@@ -1093,134 +1093,195 @@ const Mutation = {
     return updatedReview;
   },
 
-  async createCompany(parent, args, { prisma, request }, info) {
-    //Extract and verify the token
-    const user = verifyToken(request.headers.authorization);
+  async createCompany(parent, args, { prisma, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting company creation process...");
 
-    //If no valid token is provided
-    if (!user) {
-      throw new Error("Authentication required");
-    }
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
 
-    //Authorization: Only admins can create a company
-    if (user.role !== "admin") {
-      throw new Error("You do not have permission to create a company");
-    }
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
 
-    //Validate that the company name does not already exist
-    const companyExists = await prisma.company.findUnique({
-      where: {
-        name: args.data.name,
-      },
-    });
+      //Authorization: Only admins can create a company
+      if (user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to create a company by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to create a company");
+      }
 
-    //If the company name already exists
-    if (companyExists) {
-      throw new Error("Company name already exists");
-    }
-
-    //Create the company using Prisma
-    const company = await prisma.company.create({
-      data: {
-        ...args.data,
-      },
-    });
-
-    return company;
-  },
-
-  async deleteCompany(parent, args, { prisma, request }, info) {
-    //Extract and verify the token
-    const user = verifyToken(request.headers.authorization);
-
-    //If no valid token is provided
-    if (!user) {
-      throw new Error("Authentication required");
-    }
-
-    //Authorization: Only admins can delete a company
-    if (user.role !== "admin") {
-      throw new Error("You do not have permission to delete a company");
-    }
-
-    //Validate if the company name exists using Prisma
-    const companyExists = await prisma.company.findUnique({
-      where: {
-        id: args.id,
-      },
-    });
-
-    //If the company is not found
-    if (!companyExists) {
-      throw new Error("Company not found");
-    }
-
-    //Delete the company using Prisma
-    const deletedCompany = await prisma.company.delete({
-      where: {
-        id: args.id,
-      },
-    });
-
-    //Clean up related orders using Prisma
-    await prisma.order.deleteMany({
-      where: {
-        companyId: args.id,
-      },
-    });
-
-    return deletedCompany;
-  },
-
-  async updateCompany(parent, args, { prisma, request }, info) {
-    //Extract and verify the token
-    const user = verifyToken(request.headers.authorization);
-
-    //If no valid token is provided
-    if (!user) {
-      throw new Error("Authentication required");
-    }
-
-    //Authorization: Only admins can update a company
-    if (user.role !== "admin") {
-      throw new Error("You do not have permission to update a company");
-    }
-
-    //Find the company by its ID using Prisma
-    const companyExists = await prisma.company.findUnique({
-      where: {
-        id: args.id,
-      },
-    });
-
-    //If company not found
-    if (!companyExists) {
-      throw new Error("Company not found");
-    }
-
-    //If the new name is provided, validate that it doesn't already exist
-    if (args.data.name) {
-      const nameExists = await prisma.company.findUnique({
+      //Validate that the company name does not already exist
+      const companyExists = await prisma.company.findUnique({
         where: {
           name: args.data.name,
         },
       });
 
-      //If name exists
-      if (nameExists && nameExists.id !== args.id) {
+      //If the company name already exists
+      if (companyExists) {
+        logger.warn(
+          `Failed attempt to create company. Company name already exists: ${args.data.name}`
+        );
         throw new Error("Company name already exists");
       }
+
+      //Create the company using Prisma
+      const company = await prisma.company.create({
+        data: {
+          ...args.data,
+        },
+      });
+
+      //Log successful creation
+      logger.info(
+        `Company created successfully by Admin ${user.id}. New company: ${company.name}`
+      );
+
+      return company;
+    } catch (error) {
+      logger.error(`Error in createCompany Mutation: ${error.message}`);
+      throw new Error(error.message);
     }
+  },
 
-    //Update the company name using Prisma
-    const updatedCompany = await prisma.company.update({
-      where: {
-        id: args.id,
-      },
-      data: args.data,
-    });
+  async deleteCompany(parent, args, { prisma, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Strating company deletion process...");
 
-    return updatedCompany;
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
+
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
+
+      //Authorization: Only admins can delete a company
+      if (user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to delete a company by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to delete a company");
+      }
+
+      //Validate if the company name exists using Prisma
+      const companyExists = await prisma.company.findUnique({
+        where: {
+          id: args.id,
+        },
+      });
+
+      //If the company is not found
+      if (!companyExists) {
+        logger.warn(`Company with ID ${args.id} not found`);
+        throw new Error("Company not found");
+      }
+
+      //Delete the company using Prisma
+      const deletedCompany = await prisma.company.delete({
+        where: {
+          id: args.id,
+        },
+      });
+
+      //Log successful deletion
+      logger.info(
+        `Company with ID ${args.id} deleted successfully by Admin ${user.id}`
+      );
+
+      //Clean up related orders using Prisma
+      await prisma.order.deleteMany({
+        where: {
+          companyId: args.id,
+        },
+      });
+
+      return deletedCompany;
+    } catch (error) {
+      logger.error(`Error in deleteCompany Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
+  },
+
+  async updateCompany(parent, args, { prisma, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting company update process...");
+
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
+
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
+
+      //Authorization: Only admins can update a company
+      if (user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to update a company by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to update a company");
+      }
+
+      //Find the company by its ID using Prisma
+      const companyExists = await prisma.company.findUnique({
+        where: {
+          id: args.id,
+        },
+      });
+
+      //If company not found
+      if (!companyExists) {
+        logger.warn(`Company with ID ${args.id} not found`);
+        throw new Error("Company not found");
+      }
+
+      //If the new name is provided, validate that it doesn't already exist
+      if (args.data.name) {
+        const nameExists = await prisma.company.findUnique({
+          where: {
+            name: args.data.name,
+          },
+        });
+
+        //If name exists
+        if (nameExists && nameExists.id !== args.id) {
+          logger.warn(
+            `Failed attempt to update company. Name already exists: ${args.data.name}`
+          );
+          throw new Error("Company name already exists");
+        }
+      }
+
+      //Update the company name using Prisma
+      const updatedCompany = await prisma.company.update({
+        where: {
+          id: args.id,
+        },
+        data: args.data,
+      });
+
+      //Log successful update
+      logger.info(
+        `Company with ID ${args.id} updated successfully by Admin ${
+          user.id
+        }. Updated fields: ${Object.keys(args.data).join(",")}`
+      );
+
+      return updatedCompany;
+    } catch (error) {
+      logger.error(`Error in updateCompany Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
   },
 };
 
