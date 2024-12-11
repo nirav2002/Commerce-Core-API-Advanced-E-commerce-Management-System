@@ -1,38 +1,56 @@
 import { verifyToken } from "../utils/auth";
 
 const Mutation = {
-  async login(parent, args, { prisma, bcrypt, jwt }, info) {
-    //Fetch the user by email
-    const user = await prisma.user.findUnique({
-      where: {
-        email: args.email,
-      },
-    });
+  async login(parent, args, { prisma, bcrypt, jwt, logger }, info) {
+    //Log the start of the login process
+    logger.info("Starting login process...");
 
-    //If user does not exist
-    if (!user) {
-      throw new Error("Invalid email or password");
-    }
+    try {
+      //Fetch the user by email
+      const user = await prisma.user.findUnique({
+        where: {
+          email: args.email,
+        },
+      });
 
-    //Verify the password
-    const isPasswordValid = await bcrypt.compare(args.password, user.password);
-    if (!isPasswordValid) {
-      throw new Error("Invalid email or password");
-    }
-
-    //Generate a JWT
-    const token = jwt.sign(
-      {
-        id: user.id,
-        role: user.role,
-      },
-      process.env.JWT_SECRET, //Secret key for signing
-      {
-        expiresIn: "2h",
+      //If user does not exist
+      if (!user) {
+        logger.warn(`Login failed: Invalid email - ${args.email}`);
+        throw new Error("Invalid email or password");
       }
-    );
 
-    return { token };
+      //Verify the password
+      const isPasswordValid = await bcrypt.compare(
+        args.password,
+        user.password
+      );
+      if (!isPasswordValid) {
+        logger.warn(`Login failed: Invalid password for email - ${args.email}`);
+        throw new Error("Invalid email or password");
+      }
+
+      //Generate a JWT
+      const token = jwt.sign(
+        {
+          id: user.id,
+          role: user.role,
+        },
+        process.env.JWT_SECRET, //Secret key for signing
+        {
+          expiresIn: "2h",
+        }
+      );
+
+      //Log successful login
+      logger.info(
+        `User logged in successfully: ID - ${user.id}, Role - ${user.role}`
+      );
+
+      return { token };
+    } catch (error) {
+      logger.error(`Error in login process: ${error.message}`);
+      throw new Error(error.message);
+    }
   },
 
   async createProduct(parent, args, { prisma, pubsub, request }, info) {
