@@ -53,183 +53,242 @@ const Mutation = {
     }
   },
 
-  async createProduct(parent, args, { prisma, pubsub, request }, info) {
-    //Extract and verify the token
-    const user = verifyToken(request.headers.authorization);
+  async createProduct(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the procss
+    logger.info("Starting product creation process...");
 
-    //If no valid token is provided
-    if (!user) {
-      throw new Error("Authentication required");
-    }
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
 
-    //Authorization: Only admins can create a product
-    if (user.role !== "admin") {
-      throw new Error("You do not have permission to create a product");
-    }
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
 
-    //Validate that the categoryID exists using Prisma
-    const categoryID = parseInt(args.data.categoryID, 10);
+      //Authorization: Only admins can create a product
+      if (user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to create a product by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to create a product");
+      }
 
-    const categoryExists = await prisma.category.findUnique({
-      where: {
-        id: categoryID, //CategoryID is integer
-      },
-    });
-
-    //If category does not exist
-    if (!categoryExists) {
-      throw new Error("Category not found");
-    }
-
-    //Create the product using Prisma
-    const product = await prisma.product.create({
-      data: {
-        name: args.data.name,
-        price: args.data.price,
-        inStock: args.data.inStock,
-        category: {
-          connect: {
-            id: categoryID,
-          },
-        },
-      },
-    });
-
-    //Publish the product creation to the pubsub model
-    pubsub.publish("productChannel", {
-      product: {
-        mutation: "CREATED",
-        data: product,
-      },
-    });
-
-    return product;
-  },
-
-  async deleteProduct(parent, args, { prisma, pubsub, request }, info) {
-    //Extract and verify the token
-    const user = verifyToken(request.headers.authorization);
-
-    //If no valid token is provided
-    if (!user) {
-      throw new Error("Authentication required");
-    }
-
-    //Authorization: Only admins can delete a product
-    if (user.role !== "admin") {
-      throw new Error("You do not have permission to delete a product");
-    }
-
-    //Ensure that id is an integer
-    const productId = parseInt(args.id, 10);
-
-    //Validate if the product exists using Prisma
-    const product = await prisma.product.findUnique({
-      where: {
-        id: productId,
-      },
-    });
-
-    //If product does not exist
-    if (!product) {
-      throw new Error("Product not found");
-    }
-
-    //Delete the product using Prisma
-    const deletedProduct = await prisma.product.delete({
-      where: {
-        id: productId,
-      },
-    });
-
-    //Remove all orders associated with the product
-    await prisma.order.deleteMany({
-      where: {
-        productId: productId, //Ensuring productId is an integer
-      },
-    });
-
-    //Remove all reviews associated with the product
-    await prisma.review.deleteMany({
-      where: {
-        productId: productId,
-      },
-    });
-
-    //Publish the deleted product to pubsub model
-    pubsub.publish("productChannel", {
-      product: {
-        mutation: "DELETED",
-        data: deletedProduct,
-      },
-    });
-
-    return deletedProduct;
-  },
-
-  async updateProduct(parent, args, { prisma, pubsub, request }, info) {
-    //Extract and verify the token
-    const user = verifyToken(request.headers.authorization);
-
-    //If no valid token is provided
-    if (!user) {
-      throw new Error("Authentication required");
-    }
-
-    //Authorization: Only admins can update a product
-    if (user.role !== "admin") {
-      throw new Error("You do not have permission to update a product");
-    }
-
-    //Convert the id to an integer
-    const productId = parseInt(args.id, 10);
-
-    //Check if the product exists using Prisma
-    const product = await prisma.product.findUnique({
-      where: {
-        id: productId, //Use the integer productId
-      },
-    });
-
-    //If product does not exist
-    if (!product) {
-      throw new Error("Product not found");
-    }
-
-    //If categoryId is provided with args.data for updation, validate it exists using Prisma
-    if (args.data.categoryId) {
-      //Convert categoryId to an integer
-      const categoryId = parseInt(args.data.categoryId, 10);
+      //Validate that the categoryID exists using Prisma
+      const categoryID = parseInt(args.data.categoryID, 10);
 
       const categoryExists = await prisma.category.findUnique({
         where: {
-          id: categoryId, //Use the integer categoryId
+          id: categoryID, //CategoryID is integer
         },
       });
 
       //If category does not exist
       if (!categoryExists) {
-        throw new Error("Invalid category ID");
+        logger.warn(
+          `Failed attempt to create product. Category with ID ${categoryID} not found`
+        );
+        throw new Error("Category not found");
       }
+
+      //Create the product using Prisma
+      const product = await prisma.product.create({
+        data: {
+          name: args.data.name,
+          price: args.data.price,
+          inStock: args.data.inStock,
+          category: {
+            connect: {
+              id: categoryID,
+            },
+          },
+        },
+      });
+
+      //Log successful creation
+      logger.info(
+        `Product created successfully by Admin ${user.id}. New product: ${product.name} (Category ID: ${categoryID})`
+      );
+
+      //Publish the product creation to the pubsub model
+      pubsub.publish("productChannel", {
+        product: {
+          mutation: "CREATED",
+          data: product,
+        },
+      });
+
+      return product;
+    } catch (error) {
+      logger.error(`Error in createProduct Mutation: ${error.message}`);
+      throw new Error(error.message);
     }
+  },
 
-    //Update the product using Prisma
-    const updatedProduct = await prisma.product.update({
-      where: {
-        id: productId, //Use the integer productId
-      },
-      data: args.data,
-    });
+  async deleteProduct(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting product deletion process...");
 
-    //Publish the updated product to the pubsub model
-    pubsub.publish("productChannel", {
-      product: {
-        mutation: "UPDATED",
-        data: updatedProduct,
-      },
-    });
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
 
-    return updatedProduct;
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
+
+      //Authorization: Only admins can delete a product
+      if (user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to delete a product by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to delete a product");
+      }
+
+      //Ensure that id is an integer
+      const productId = parseInt(args.id, 10);
+
+      //Validate if the product exists using Prisma
+      const product = await prisma.product.findUnique({
+        where: {
+          id: productId,
+        },
+      });
+
+      //If product does not exist
+      if (!product) {
+        logger.warn(`Product with ID ${productId} not found`);
+        throw new Error("Product not found");
+      }
+
+      //Delete the product using Prisma
+      const deletedProduct = await prisma.product.delete({
+        where: {
+          id: productId,
+        },
+      });
+
+      //Log successful deletion
+      logger.info(
+        `Product with ID ${productId} deleted successfully by Admin ${user.id}`
+      );
+
+      //Remove all orders associated with the product
+      await prisma.order.deleteMany({
+        where: {
+          productId: productId, //Ensuring productId is an integer
+        },
+      });
+
+      //Remove all reviews associated with the product
+      await prisma.review.deleteMany({
+        where: {
+          productId: productId,
+        },
+      });
+
+      //Publish the deleted product to pubsub model
+      pubsub.publish("productChannel", {
+        product: {
+          mutation: "DELETED",
+          data: deletedProduct,
+        },
+      });
+
+      return deletedProduct;
+    } catch (error) {
+      logger.error(`Error in deleteProduct Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
+  },
+
+  async updateProduct(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting product update process...");
+
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
+
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
+
+      //Authorization: Only admins can update a product
+      if (user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to update a product by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to update a product");
+      }
+
+      //Convert the id to an integer
+      const productId = parseInt(args.id, 10);
+
+      //Check if the product exists using Prisma
+      const product = await prisma.product.findUnique({
+        where: {
+          id: productId, //Use the integer productId
+        },
+      });
+
+      //If product does not exist
+      if (!product) {
+        logger.warn(`Product with ID ${productId} not found`);
+        throw new Error("Product not found");
+      }
+
+      //If categoryId is provided with args.data for updation, validate it exists using Prisma
+      if (args.data.categoryId) {
+        //Convert categoryId to an integer
+        const categoryId = parseInt(args.data.categoryId, 10);
+
+        const categoryExists = await prisma.category.findUnique({
+          where: {
+            id: categoryId, //Use the integer categoryId
+          },
+        });
+
+        //If category does not exist
+        if (!categoryExists) {
+          logger.warn(`Invalid category ID provided: ${categoryId}`);
+          throw new Error("Invalid category ID");
+        }
+      }
+
+      //Update the product using Prisma
+      const updatedProduct = await prisma.product.update({
+        where: {
+          id: productId, //Use the integer productId
+        },
+        data: args.data,
+      });
+
+      //Log successful update
+      logger.info(
+        `Product with ID ${productId} updated successfully by Admin ${
+          user.id
+        }. Updated fields: ${Object.keys(args.data).join(", ")}`
+      );
+
+      //Publish the updated product to the pubsub model
+      pubsub.publish("productChannel", {
+        product: {
+          mutation: "UPDATED",
+          data: updatedProduct,
+        },
+      });
+
+      return updatedProduct;
+    } catch (error) {
+      logger.error(`Error in updateProduct Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
   },
 
   async createCategory(
