@@ -1138,151 +1138,33 @@ const Mutation = {
     }
   },
 
-  async createReview(parent, args, { prisma, pubsub }, info) {
-    //Convert productID and userID to integers
-    const productId = parseInt(args.data.productID, 10);
-    const userId = parseInt(args.data.userID, 10);
+  async createReview(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting review creation process...");
 
-    //Validate if the product exists using Prisma
-    const productExists = await prisma.product.findUnique({
-      where: {
-        id: productId, //Use integer productId
-      },
-    });
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
 
-    //If product does not exist
-    if (!productExists) {
-      throw new Error("Product not found");
-    }
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
 
-    //Validate if the user exists using Prisma
-    const userExists = await prisma.user.findUnique({
-      where: {
-        id: userId, //Use integer userId
-      },
-    });
+      //Authorization: Only users can create a review
+      if (user.role !== "user") {
+        logger.warn(
+          `Unauthorized attempt to create a review by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to create a review");
+      }
 
-    //If user does not exist
-    if (!userExists) {
-      throw new Error("User not found");
-    }
+      //Convert productID and userID to integers
+      const productId = parseInt(args.data.productID, 10);
+      const userId = parseInt(args.data.userID, 10);
 
-    //Validate rating
-    if (args.data.rating < 0 || args.data.rating > 5) {
-      throw new Error("Rating must be between 0 and 5");
-    }
-
-    //Create the review using Prisma
-    const review = await prisma.review.create({
-      data: {
-        rating: args.data.rating,
-        comment: args.data.comment,
-        product: {
-          connect: {
-            id: productId, //Connecting to the existing product
-          },
-        },
-        user: {
-          connect: {
-            id: userId, //Connecting to the existing user
-          },
-        },
-      },
-    });
-
-    //Publish the review to the pubsub model
-    pubsub.publish(`reviewChannel_${args.data.productID}`, {
-      review: {
-        mutation: "CREATED",
-        data: review,
-      },
-    });
-
-    return review;
-  },
-
-  async deleteReview(parent, args, { prisma, pubsub, request }, info) {
-    //Extract and verify the token provided by a user
-    const user = verifyToken(request.headers.authorization);
-
-    if (!user) {
-      throw new Error("Authentication required");
-    }
-
-    //Convert reviewId to integer
-    const reviewId = parseInt(args.id, 10);
-
-    //Validate if the review exists using Prisma
-    const reviewExists = await prisma.review.findUnique({
-      where: {
-        id: reviewId, //Use integer reviewId
-      },
-    });
-
-    //If review not found
-    if (!reviewExists) {
-      throw new Error("Review not found");
-    }
-
-    //Authorization:  Admins can delete any review, users can delete only their own
-    if (user.role !== "admin" && reviewExists.userId !== user.id) {
-      throw new Error("You do not have permission to delete this review");
-    }
-
-    //Converting to be deleted Review's product ID from integer to string for subscription
-    const productID = reviewExists.productId.toString();
-
-    //Delete the review using Prisma
-    const deletedReview = await prisma.review.delete({
-      where: {
-        id: reviewId, //Use integer reviewId
-      },
-    });
-
-    //Publish the deleted review to the pubsub model
-    pubsub.publish(`reviewChannel_${productID}`, {
-      review: {
-        mutation: "DELETED",
-        data: deletedReview,
-      },
-    });
-
-    return deletedReview;
-  },
-
-  async updateReview(parent, args, { prisma, pubsub, request }, info) {
-    //Extract and verify the token
-    const user = verifyToken(request.headers.authorization);
-
-    //If authorization field does not exist (No Bearer token provided in headers by user)
-    if (!user) {
-      throw new Error("Authentication required");
-    }
-
-    //Convert Id to integer
-    const reviewId = parseInt(args.id, 10);
-    const productId = parseInt(args.data.productID, 10); //If given as input
-    const userId = parseInt(args.data.userID, 10); //If given as input
-
-    //Validate if the review exists using Prisma
-    const reviewExists = await prisma.review.findUnique({
-      where: {
-        id: reviewId, //Use integer reviewId
-      },
-    });
-
-    //If review not found
-    if (!reviewExists) {
-      throw new Error("Review not found");
-    }
-
-    //Authorization: Admins can update any review, users can update only their own
-    if (user.role !== "admin" && reviewExists.userId !== user.id) {
-      throw new Error("You do not have permission to update this review");
-    }
-
-    //Validate the provided product ID (if any)
-    if (args.data.productID) {
+      //Validate if the product exists using Prisma
       const productExists = await prisma.product.findUnique({
         where: {
           id: productId, //Use integer productId
@@ -1291,44 +1173,235 @@ const Mutation = {
 
       //If product does not exist
       if (!productExists) {
-        throw new Error("Invalid product ID");
+        logger.warn(`Product with ID ${productId} not found`);
+        throw new Error("Product not found");
       }
-    }
 
-    //Validate the provided user ID (if any)
-    if (args.data.userID) {
+      //Validate if the user exists using Prisma
       const userExists = await prisma.user.findUnique({
         where: {
-          id: userId,
+          id: userId, //Use integer userId
         },
       });
 
       //If user does not exist
       if (!userExists) {
-        throw new Error("Invalid user ID");
+        logger.warn(`User with ID ${userId} not found`);
+        throw new Error("User not found");
       }
+
+      //Validate rating
+      if (args.data.rating < 0 || args.data.rating > 5) {
+        logger.warn(`Invalid rating value provided: ${args.data.rating}`);
+        throw new Error("Rating must be between 0 and 5");
+      }
+
+      //Create the review using Prisma
+      const review = await prisma.review.create({
+        data: {
+          rating: args.data.rating,
+          comment: args.data.comment,
+          product: {
+            connect: {
+              id: productId, //Connecting to the existing product
+            },
+          },
+          user: {
+            connect: {
+              id: userId, //Connecting to the existing user
+            },
+          },
+        },
+      });
+
+      //Log successful creation
+      logger.info(
+        `Review created successfully by User ${user.id}. Review ID: ${review.id}, Rating: ${review.rating}`
+      );
+
+      //Publish the review to the pubsub model
+      pubsub.publish(`reviewChannel_${args.data.productID}`, {
+        review: {
+          mutation: "CREATED",
+          data: review,
+        },
+      });
+
+      return review;
+    } catch (error) {
+      logger.error(`Error in createReview Mutation: ${error.message}`);
+      throw new Error(error.message);
     }
+  },
 
-    //Update the review using Prisma
-    const updatedReview = await prisma.review.update({
-      where: {
-        id: reviewId, //Use integer reviewId
-      },
-      data: args.data,
-    });
+  async deleteReview(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting review deletion process...");
 
-    //To convert productId from Integer to String for subscritions
-    const productID = reviewExists.productId.toString();
+    try {
+      //Extract and verify the token provided by a user
+      const user = verifyToken(request.headers.authorization);
 
-    //Publish the updated review to the pubsub model
-    pubsub.publish(`reviewChannel_${productID}`, {
-      review: {
-        mutation: "UPDATED",
-        data: updatedReview,
-      },
-    });
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
 
-    return updatedReview;
+      //Convert reviewId to integer
+      const reviewId = parseInt(args.id, 10);
+
+      //Validate if the review exists using Prisma
+      const reviewExists = await prisma.review.findUnique({
+        where: {
+          id: reviewId, //Use integer reviewId
+        },
+      });
+
+      //If review not found
+      if (!reviewExists) {
+        logger.warn(`Review with ID ${reviewId} not found`);
+        throw new Error("Review not found");
+      }
+
+      //Authorization: Only the user who created the review can delete it
+      if (reviewExists.userId !== user.id) {
+        logger.warn(
+          `Unauthorized attempt to delete review with ID ${reviewId} by User ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to delete this review");
+      }
+
+      //Converting to be deleted Review's product ID from integer to string for subscription
+      const productID = reviewExists.productId.toString();
+
+      //Delete the review using Prisma
+      const deletedReview = await prisma.review.delete({
+        where: {
+          id: reviewId, //Use integer reviewId
+        },
+      });
+
+      //Log successful deletion
+      logger.info(
+        `Review with ID ${reviewId} deleted successfully by User ${user.id}`
+      );
+
+      //Publish the deleted review to the pubsub model
+      pubsub.publish(`reviewChannel_${productID}`, {
+        review: {
+          mutation: "DELETED",
+          data: deletedReview,
+        },
+      });
+
+      return deletedReview;
+    } catch (error) {
+      logger.error(`Error in deleteReview Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
+  },
+
+  async updateReview(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting review update process...");
+
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
+
+      //If authorization field does not exist (No Bearer token provided in headers by user)
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
+
+      //Convert Id to integer
+      const reviewId = parseInt(args.id, 10);
+      const productId = parseInt(args.data.productID, 10); //If given as input
+      const userId = parseInt(args.data.userID, 10); //If given as input
+
+      //Validate if the review exists using Prisma
+      const reviewExists = await prisma.review.findUnique({
+        where: {
+          id: reviewId, //Use integer reviewId
+        },
+      });
+
+      //If review not found
+      if (!reviewExists) {
+        logger.warn(`Review with ID ${reviewId} not found`);
+        throw new Error("Review not found");
+      }
+
+      //Authorization: Only the user who created the review can update it
+      if (reviewExists.userId !== user.id) {
+        logger.warn(
+          `Unauthorized attempt to update review with ID ${reviewId} by user ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to update this review");
+      }
+
+      //Validate the provided product ID (if any)
+      if (args.data.productID) {
+        const productExists = await prisma.product.findUnique({
+          where: {
+            id: productId, //Use integer productId
+          },
+        });
+
+        //If product does not exist
+        if (!productExists) {
+          logger.warn(`Invalid product ID provided: ${productId}`);
+          throw new Error("Invalid product ID");
+        }
+      }
+
+      //Validate the provided user ID (if any)
+      if (args.data.userID) {
+        const userExists = await prisma.user.findUnique({
+          where: {
+            id: userId,
+          },
+        });
+
+        //If user does not exist
+        if (!userExists) {
+          logger.warn(`Invalid user ID provided: ${userId}`);
+          throw new Error("Invalid user ID");
+        }
+      }
+
+      //Update the review using Prisma
+      const updatedReview = await prisma.review.update({
+        where: {
+          id: reviewId, //Use integer reviewId
+        },
+        data: args.data,
+      });
+
+      //Log successful update
+      logger.info(
+        `Review with ID ${reviewId} updated successfully by user ${
+          user.id
+        }. Updated fields: ${Object.keys(args.data).join(", ")}`
+      );
+
+      //To convert productId from Integer to String for subscritions
+      const productID = reviewExists.productId.toString();
+
+      //Publish the updated review to the pubsub model
+      pubsub.publish(`reviewChannel_${productID}`, {
+        review: {
+          mutation: "UPDATED",
+          data: updatedReview,
+        },
+      });
+
+      return updatedReview;
+    } catch (error) {
+      logger.error(`Error in updateReview Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
   },
 
   async createCompany(parent, args, { prisma, request, logger }, info) {
