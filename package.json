@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "nodemon --exec \"npx babel-node\" --ext js,graphql src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest"
   },
   "author": "Nirav Bhatt",
   "license": "ISC",
@@ -23,6 +23,8 @@
     "winston": "^3.17.0"
   },
   "devDependencies": {
+    "dotenv": "^16.4.7",
+    "jest": "^29.7.0",
     "nodemon": "^3.1.7"
   }
 }
