@@ -837,204 +837,305 @@ const Mutation = {
     }
   },
 
-  async createOrder(parent, args, { prisma, pubsub }, info) {
-    //Converting the IDs to integers
-    const userID = parseInt(args.data.userID, 10);
-    const productID = parseInt(args.data.productID, 10);
-    const companyID = parseInt(args.data.companyID, 10);
+  async createOrder(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting order creation process...");
 
-    //Validate if the user ID provided through args exists or not in the database
-    const userExists = await prisma.user.findUnique({
-      where: {
-        id: userID,
-      },
-    });
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
 
-    //If user does not exist
-    if (!userExists) {
-      throw new Error("User not found");
-    }
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
 
-    //Validate if the product ID provided through args exists or not
-    const productExists = await prisma.product.findUnique({
-      where: {
-        id: productID,
-      },
-    });
+      if (user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to create an oder by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to create an order");
+      }
 
-    //If product does not exist
-    if (!productExists) {
-      throw new Error("Product not found");
-    }
+      //Converting the IDs to integers
+      const userID = parseInt(args.data.userID, 10);
+      const productID = parseInt(args.data.productID, 10);
+      const companyID = parseInt(args.data.companyID, 10);
 
-    //Check if the product is in stock or not
-    if (!productExists.inStock) {
-      throw new Error("Product is out of stock");
-    }
-
-    //Validate company ID
-    const companyExists = await prisma.company.findUnique({
-      where: {
-        id: companyID,
-      },
-    });
-
-    //If company not found
-    if (!companyExists) {
-      throw new Error("Company not found");
-    }
-
-    //Create the new order using Prisma
-    const order = await prisma.order.create({
-      data: {
-        userId: userID,
-        productId: productID,
-        companyId: companyID,
-        totalAmount: args.data.totalAmount,
-        status: args.data.status,
-        orderDate: args.data.orderDate,
-      },
-    });
-
-    //Publish the order to the pubsub model
-    pubsub.publish("orderChannel", {
-      order: {
-        mutation: "CREATED",
-        data: order,
-      },
-    });
-
-    return order;
-  },
-
-  async deleteOrder(parent, args, { prisma, pubsub }, info) {
-    //Converting orderId to an integer
-    const orderId = parseInt(args.id, 10);
-
-    //Validate if the order exists using Prisma
-    const orderExists = await prisma.order.findUnique({
-      where: {
-        id: orderId, //Use the integer orderId
-      },
-    });
-
-    //If order not found
-    if (!orderExists) {
-      throw new Error("Order not found");
-    }
-
-    //Delete the order using Prisma
-    const deletedOrder = await prisma.order.delete({
-      where: {
-        id: orderId, //Use the integer orderId
-      },
-    });
-    pubsub.publish("orderChannel", {
-      order: {
-        mutation: "DELETED",
-        data: deletedOrder,
-      },
-    });
-
-    return deletedOrder;
-  },
-
-  async updateOrder(parent, args, { prisma, pubsub }, info) {
-    //Converting IDs to integer
-    const orderId = parseInt(args.id, 10);
-    const userId = parseInt(args.data.userID, 10);
-    const productId = parseInt(args.data.productID, 10);
-    const companyId = parseInt(args.data.companyID, 10);
-
-    //Check whether the order exists or not
-    const orderExists = await prisma.order.findUnique({
-      where: {
-        id: orderId, //Use the integer orderId
-      },
-    });
-
-    //If order is not found
-    if (!orderExists) {
-      throw new Error("Order not found");
-    }
-
-    //Validate new user ID if provided
-    if (args.data.userID) {
+      //Validate if the user ID provided through args exists or not in the database
       const userExists = await prisma.user.findUnique({
         where: {
-          id: userId, //Use the integer userId
+          id: userID,
         },
       });
 
       //If user does not exist
       if (!userExists) {
-        throw new Error("Invalid user ID");
+        logger.warn(`User with ID {userID} not found`);
+        throw new Error("User not found");
       }
-    }
-    //Validate new product ID if provided
-    if (args.data.productID) {
+
+      //Validate if the product ID provided through args exists or not
       const productExists = await prisma.product.findUnique({
         where: {
-          id: productId, //Use the integer productId
+          id: productID,
         },
       });
 
       //If product does not exist
       if (!productExists) {
-        throw new Error("Invalid product ID");
+        logger.warn(`Product with ID ${productID} not found`);
+        throw new Error("Product not found");
       }
-    }
 
-    //Validate new company ID if provided
-    if (args.data.companyID) {
+      //Check if the product is in stock or not
+      if (!productExists.inStock) {
+        logger.warn(`Product with ID ${productID} is out of stock`);
+        throw new Error("Product is out of stock");
+      }
+
+      //Validate company ID
       const companyExists = await prisma.company.findUnique({
         where: {
-          id: companyId, //Use the integer companyId
+          id: companyID,
         },
       });
 
-      //If company does not exist
+      //If company not found
       if (!companyExists) {
-        throw new Error("Invalid company ID");
+        logger.warn(`Company with ID ${companyID} not found`);
+        throw new Error("Company not found");
       }
+
+      //Create the new order using Prisma
+      const order = await prisma.order.create({
+        data: {
+          userId: userID,
+          productId: productID,
+          companyId: companyID,
+          totalAmount: args.data.totalAmount,
+          status: args.data.status,
+          orderDate: args.data.orderDate,
+        },
+      });
+
+      //Log successful creation
+      logger.info(
+        `Order created successfully by Admin ${user.id}. Ordr ID: ${order.id}, Total Amount: ${order.totalAmount}`
+      );
+
+      //Publish the order to the pubsub model
+      pubsub.publish("orderChannel", {
+        order: {
+          mutation: "CREATED",
+          data: order,
+        },
+      });
+
+      return order;
+    } catch (error) {
+      logger.error(`Error in createOrder Mutation: ${error.message}`);
+      throw new Error(error.message);
     }
+  },
 
-    //Update the order using Prisma
-    const updatedOrder = await prisma.order.update({
-      where: {
-        id: orderId, //Use the integer orderId
-      },
-      data: {
-        totalAmount: args.data.totalAmount,
-        status: args.data.status,
-        orderDate: args.data.orderDate,
-        user: {
-          connect: {
-            id: userId,
+  async deleteOrder(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting order deletion process...");
+
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
+
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
+
+      //Converting orderId to an integer
+      const orderId = parseInt(args.id, 10);
+
+      //Validate if the order exists using Prisma
+      const orderExists = await prisma.order.findUnique({
+        where: {
+          id: orderId, //Use the integer orderId
+        },
+      });
+
+      //If order not found
+      if (!orderExists) {
+        logger.warn(`Order with ID ${orderId} not found`);
+        throw new Error("Order not found");
+      }
+
+      //Authorization: Only the user who created the order or an admin can delete it
+      if (orderExists.userId !== user.id && user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to delete order with ID ${orderId} by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to delete this order");
+      }
+
+      //Delete the order using Prisma
+      const deletedOrder = await prisma.order.delete({
+        where: {
+          id: orderId, //Use the integer orderId
+        },
+      });
+
+      //Log successful deletion
+      logger.info(
+        `Order with ID ${orderId} deleted successfully by ${user.id} (Role: ${user.role})`
+      );
+
+      pubsub.publish("orderChannel", {
+        order: {
+          mutation: "DELETED",
+          data: deletedOrder,
+        },
+      });
+
+      return deletedOrder;
+    } catch (error) {
+      logger.error(`Error in deleteOrder Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
+  },
+
+  async updateOrder(parent, args, { prisma, pubsub, request, logger }, info) {
+    //Log the start of the process
+    logger.info("Starting order update process...");
+
+    try {
+      //Extract and verify the token
+      const user = verifyToken(request.headers.authorization);
+
+      //If no valid token is provided
+      if (!user) {
+        logger.warn("Authentication required. No valid token provided");
+        throw new Error("Authentication required");
+      }
+
+      //Converting IDs to integer
+      const orderId = parseInt(args.id, 10);
+      const userId = parseInt(args.data.userID, 10);
+      const productId = parseInt(args.data.productID, 10);
+      const companyId = parseInt(args.data.companyID, 10);
+
+      //Check whether the order exists or not
+      const orderExists = await prisma.order.findUnique({
+        where: {
+          id: orderId, //Use the integer orderId
+        },
+      });
+
+      //If order is not found
+      if (!orderExists) {
+        logger.warn(`Order with ID ${orderId} not found`);
+        throw new Error("Order not found");
+      }
+
+      //Authorization: Only the user who created the order or an admin can update it
+      if (orderExists.userId !== user.id && user.role !== "admin") {
+        logger.warn(
+          `Unauthorized attempt to update order with ID ${orderId} by ${user.id} (Role: ${user.role})`
+        );
+        throw new Error("You do not have permission to update this order");
+      }
+
+      //Validate new user ID if provided
+      if (args.data.userID) {
+        const userExists = await prisma.user.findUnique({
+          where: {
+            id: userId, //Use the integer userId
+          },
+        });
+
+        //If user does not exist
+        if (!userExists) {
+          logger.warn(`Invalid user ID provided: ${userId}`);
+          throw new Error("Invalid user ID");
+        }
+      }
+      //Validate new product ID if provided
+      if (args.data.productID) {
+        const productExists = await prisma.product.findUnique({
+          where: {
+            id: productId, //Use the integer productId
+          },
+        });
+
+        //If product does not exist
+        if (!productExists) {
+          logger.warn(`Invalid product ID provided: ${productId}`);
+          throw new Error("Invalid product ID");
+        }
+      }
+
+      //Validate new company ID if provided
+      if (args.data.companyID) {
+        const companyExists = await prisma.company.findUnique({
+          where: {
+            id: companyId, //Use the integer companyId
+          },
+        });
+
+        //If company does not exist
+        if (!companyExists) {
+          logger.warn(`Invalid company ID provided: ${companyId}`);
+          throw new Error("Invalid company ID");
+        }
+      }
+
+      //Update the order using Prisma
+      const updatedOrder = await prisma.order.update({
+        where: {
+          id: orderId, //Use the integer orderId
+        },
+        data: {
+          totalAmount: args.data.totalAmount,
+          status: args.data.status,
+          orderDate: args.data.orderDate,
+          user: {
+            connect: {
+              id: userId,
+            },
+          },
+          product: {
+            connect: {
+              id: productId,
+            },
+          },
+          company: {
+            connect: {
+              id: companyId,
+            },
           },
         },
-        product: {
-          connect: {
-            id: productId,
-          },
-        },
-        company: {
-          connect: {
-            id: companyId,
-          },
-        },
-      },
-    });
+      });
 
-    //Publish the updated order to pubsub model
-    pubsub.publish("orderChannel", {
-      order: {
-        mutation: "UPDATED",
-        data: updatedOrder,
-      },
-    });
+      //Log successful update
+      logger.info(
+        `Order with ID ${orderId} updated successfully by ${user.id} (Role: ${
+          user.role
+        }). Updated fields: ${Object.keys(args.data).join(", ")}`
+      );
 
-    return updatedOrder;
+      //Publish the updated order to pubsub model
+      pubsub.publish("orderChannel", {
+        order: {
+          mutation: "UPDATED",
+          data: updatedOrder,
+        },
+      });
+
+      return updatedOrder;
+    } catch (error) {
+      logger.error(`Error in updateOrder Mutation: ${error.message}`);
+      throw new Error(error.message);
+    }
   },
 
   async createReview(parent, args, { prisma, pubsub }, info) {
