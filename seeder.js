@@ -310,14 +310,25 @@ const importData = async () => {
     // Seed products
     for (const product of products) {
       const category = await prisma.category.findUnique({
-        where: { name: product.categoryName },
+        where: { name: categories[product.categoryID - 1].name }, // Match category by name
       });
+
+      if (!category) {
+        throw new Error(
+          `Category with name ${
+            categories[product.categoryID - 1].name
+          } not found.`
+        );
+      }
+
       await prisma.product.create({
         data: {
           name: product.name,
           price: product.price,
           inStock: product.inStock,
-          categoryID: category.id,
+          category: {
+            connect: { id: category.id }, // Use dynamically fetched category ID
+          },
         },
       });
     }
@@ -325,30 +336,31 @@ const importData = async () => {
     // Seed orders
     for (const order of orders) {
       const user = await prisma.user.findUnique({
-        where: { email: order.userEmail },
+        where: { email: users[order.userID - 1].email }, // Fetch user by email
       });
-      const category = await prisma.category.findUnique({
-        where: {
-          name: products.find((p) => p.name === order.productName).categoryName,
-        },
+
+      const product = await prisma.product.findFirst({
+        where: { name: products[order.productID - 1].name }, // Fetch product by name
       });
-      const product = await prisma.product.findUnique({
-        where: {
-          name_categoryID: { name: order.productName, categoryID: category.id },
-        },
-      });
+
       const company = await prisma.company.findUnique({
-        where: { name: order.companyName },
+        where: { name: companies[order.companyID - 1].name }, // Fetch company by name
       });
+
+      if (!user || !product || !company) {
+        throw new Error(
+          `Invalid order data: User, Product, or Company not found for order with totalAmount ${order.totalAmount}.`
+        );
+      }
 
       await prisma.order.create({
         data: {
           totalAmount: order.totalAmount,
           status: order.status,
           orderDate: order.orderDate,
-          userId: user.id,
-          productId: product.id,
-          companyId: company.id,
+          user: { connect: { id: user.id } },
+          product: { connect: { id: product.id } },
+          company: { connect: { id: company.id } },
         },
       });
     }
@@ -356,29 +368,25 @@ const importData = async () => {
     // Seed reviews
     for (const review of reviews) {
       const user = await prisma.user.findUnique({
-        where: { email: review.userEmail },
+        where: { id: review.userID },
       });
-      const category = await prisma.category.findUnique({
-        where: {
-          name: products.find((p) => p.name === review.productName)
-            .categoryName,
-        },
+
+      const product = await prisma.product.findFirst({
+        where: { id: review.productID },
       });
-      const product = await prisma.product.findUnique({
-        where: {
-          name_categoryID: {
-            name: review.productName,
-            categoryID: category.id,
-          },
-        },
-      });
+
+      if (!user || !product) {
+        throw new Error(
+          `Invalid review data: User or Product not found for review with rating ${review.rating}.`
+        );
+      }
 
       await prisma.review.create({
         data: {
           rating: review.rating,
           comment: review.comment,
-          userId: user.id,
-          productId: product.id,
+          user: { connect: { id: user.id } },
+          product: { connect: { id: product.id } },
         },
       });
     }
