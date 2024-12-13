@@ -853,7 +853,7 @@ const Mutation = {
 
       if (user.role !== "admin") {
         logger.warn(
-          `Unauthorized attempt to create an oder by ${user.id} (Role: ${user.role})`
+          `Unauthorized attempt to create an order by ${user.id} (Role: ${user.role})`
         );
         throw new Error("You do not have permission to create an order");
       }
