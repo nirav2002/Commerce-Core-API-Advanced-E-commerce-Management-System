@@ -4,9 +4,20 @@ const Mutation = {
   async login(parent, args, { prisma, bcrypt, jwt, logger }, info) {
     //Log the start of the login process
     logger.info("Starting login process...");
-    logger.info(`Login attempt: ${args.email}`);
 
     try {
+      //Check if email is provided
+      if (!args.email) {
+        logger.warn("Login failed: Email is required");
+        throw new Error("Email is required");
+      }
+
+      //Check if password is provided
+      if (!args.password) {
+        logger.warn("Login failed: Password is required");
+        throw new Error("Password is required");
+      }
+
       //Fetch the user by email
       const user = await prisma.user.findUnique({
         where: {
