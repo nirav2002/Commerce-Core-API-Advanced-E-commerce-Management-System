@@ -1,33 +1,40 @@
 import { GraphQLServer, PubSub } from "graphql-yoga";
-import { Prisma, PrismaClient } from "@prisma/client"; //Import Prisma client
-import bcrypt from "bcrypt"; //Import bcrypt
-import jwt from "jsonwebtoken"; //Import jwt
-import rateLimit from "express-rate-limit"; //Import the rate-limiting middleware
-import logger from "./utils/logger"; //Import logger and add it to context object
-
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
+import logger from "./utils/logger";
 import Query from "./resolvers/Query";
 import Mutation from "./resolvers/Mutation";
 import Product from "./resolvers/Product";
 import User from "./resolvers/User";
 import Order from "./resolvers/Order";
 import Review from "./resolvers/Review";
-import db from "./db";
 import Subscription from "./resolvers/Subscription";
 
-//Creating an instance of PubSub
+// PubSub for subscriptions
 const pubsub = new PubSub();
 
-//Creating an instance of prisma client
-const prisma = new PrismaClient();
-
-//Define a rate limiter
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, //15 minutes
-  max: 100, //Limit each IP to 100 requests per WindowMs
-  message: "Too many requests from this IP, please try again later",
+// Prisma Client: uses the test database or production based on environment
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url:
+        process.env.NODE_ENV === "test"
+          ? process.env.DATABASE_TEST_URL
+          : process.env.DATABASE_URL,
+    },
+  },
 });
 
-//Creating the server
+// Rate limiter middleware for security
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP
+  message: "Too many requests, please try again later.",
+});
+
+// GraphQL Server setup
 const server = new GraphQLServer({
   typeDefs: "./src/schema.graphql",
   resolvers: {
@@ -39,23 +46,33 @@ const server = new GraphQLServer({
     Review,
     Subscription,
   },
-  //Pass the mock database and PubSub instance to all resolvers
-  context: function ({ request }) {
-    return {
-      prisma,
-      pubsub,
-      bcrypt, //Encryption purposes
-      jwt, //JSON Web Token
-      request, //Include the request object
-      logger, //Add the logger to the context
-    };
-  },
+  context: ({ request }) => ({
+    prisma,
+    pubsub,
+    bcrypt,
+    jwt,
+    request,
+    logger,
+  }),
 });
 
-//Apply the rate limiter to the server
-server.express.use(limiter); //Attach the rate-limiting middleware to the Express server
+// Rate limiter for security
+server.express.use(limiter);
 
-//Starting the server on PORT 3000
-server.start({ port: 3000 }, () => {
-  console.log("Server starting now ...");
-});
+// Function to start the server
+const startServer = (port = 4000) => {
+  return new Promise((resolve) => {
+    const serverInstance = server.start({ port }, () => {
+      logger.info(`Server is running on http://localhost:${port}`);
+      resolve(serverInstance);
+    });
+  });
+};
+
+// Start the appropriate server
+if (require.main === module) {
+  const port = process.env.NODE_ENV === "test" ? 4000 : 3000;
+  startServer(port);
+}
+
+export { startServer, server };
