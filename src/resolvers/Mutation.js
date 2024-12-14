@@ -4,6 +4,7 @@ const Mutation = {
   async login(parent, args, { prisma, bcrypt, jwt, logger }, info) {
     //Log the start of the login process
     logger.info("Starting login process...");
+    logger.info(`Login attempt: ${args.email}`);
 
     try {
       //Fetch the user by email
