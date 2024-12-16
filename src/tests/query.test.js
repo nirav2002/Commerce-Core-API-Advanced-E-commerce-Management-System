@@ -357,4 +357,93 @@ describe("GraphQL Query functionality", () => {
     expect(response.body.data.users.prevPage).toBeNull();
     expect(response.body.data.users.nextPage).toBeNull();
   });
+
+  it("should fetch all orders without filters", async () => {
+    const query = `
+        query {
+            orders {
+                id
+                totalAmount
+                status
+                orderDate
+                user {
+                    id
+                    name
+                }
+                product {
+                    id
+                    name
+                }
+                company {
+                    id
+                    name
+                }
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.orders).toBeDefined();
+    expect(response.body.data.orders.length).toBeGreaterThan(0);
+
+    const orders = response.body.data.orders;
+
+    orders.forEach((order) => {
+      expect(order).toHaveProperty("id");
+      expect(order).toHaveProperty("totalAmount");
+      expect(order).toHaveProperty("status");
+      expect(order).toHaveProperty("orderDate");
+      expect(order).toHaveProperty("user");
+      expect(order.user).toHaveProperty("id");
+      expect(order.user).toHaveProperty("name");
+      expect(order).toHaveProperty("product");
+      expect(order.product).toHaveProperty("id");
+      expect(order.product).toHaveProperty("name");
+      expect(order).toHaveProperty("company");
+      expect(order.company).toHaveProperty("id");
+      expect(order.company).toHaveProperty("name");
+    });
+  });
+
+  it("should verify relationships in the response", async () => {
+    const query = `
+        query {
+            orders {
+                id
+                totalAmount
+                status
+                orderDate
+                user {
+                    id
+                    name
+                }
+                product {
+                    id
+                    name
+                }
+                company {
+                    id
+                    name
+                }
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+
+    const orders = response.body.data.orders;
+    orders.forEach((order) => {
+      expect(order.user.name).not.toBeNull();
+      expect(order.product.name).not.toBeNull();
+      expect(order.company.name).not.toBeNull();
+    });
+  });
 });
