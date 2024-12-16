@@ -53,7 +53,7 @@ const logger = winston.createLogger({
     }),
 
     // Display logs on the console with colors
-    new winston.transports.Console(),
+    //new winston.transports.Console(),
   ],
 });
 
