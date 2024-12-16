@@ -1507,7 +1507,7 @@ const Mutation = {
       //Validate if the company name exists using Prisma
       const companyExists = await prisma.company.findUnique({
         where: {
-          id: args.id,
+          id: parseInt(args.id, 10),
         },
       });
 
@@ -1520,7 +1520,7 @@ const Mutation = {
       //Delete the company using Prisma
       const deletedCompany = await prisma.company.delete({
         where: {
-          id: args.id,
+          id: parseInt(args.id, 10),
         },
       });
 
@@ -1532,7 +1532,7 @@ const Mutation = {
       //Clean up related orders using Prisma
       await prisma.order.deleteMany({
         where: {
-          companyId: args.id,
+          companyId: parseInt(args.id, 10),
         },
       });
 
@@ -1568,7 +1568,7 @@ const Mutation = {
       //Find the company by its ID using Prisma
       const companyExists = await prisma.company.findUnique({
         where: {
-          id: args.id,
+          id: parseInt(args.id, 10),
         },
       });
 
@@ -1598,7 +1598,7 @@ const Mutation = {
       //Update the company name using Prisma
       const updatedCompany = await prisma.company.update({
         where: {
-          id: args.id,
+          id: parseInt(args.id),
         },
         data: args.data,
       });
