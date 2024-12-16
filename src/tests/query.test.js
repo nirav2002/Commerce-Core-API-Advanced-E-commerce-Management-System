@@ -160,9 +160,9 @@ describe("GraphQL Query functionality", () => {
     expect(response.body.data.products.prevPage).toBeNull();
     expect(response.body.data.products.nextPage).toBeNull();
   });
+});
 
-  //Categories
-
+describe("GraphQL Category Query functionality", () => {
   it("should fetch all categories with their respective products", async () => {
     const query = `
         query {
@@ -246,9 +246,9 @@ describe("GraphQL Query functionality", () => {
       description: "Kitchen tools and supplies",
     });
   });
+});
 
-  //Users
-
+describe("GraphQL Users Query functionality", () => {
   it("should fetch all users without any filters (default pagination)", async () => {
     const query = `
         query {
@@ -357,29 +357,31 @@ describe("GraphQL Query functionality", () => {
     expect(response.body.data.users.prevPage).toBeNull();
     expect(response.body.data.users.nextPage).toBeNull();
   });
+});
 
+describe("GraphQL Orders functionality", () => {
   it("should fetch all orders without filters", async () => {
     const query = `
-        query {
-            orders {
-                id
-                totalAmount
-                status
-                orderDate
-                user {
+            query {
+                orders {
                     id
-                    name
+                    totalAmount
+                    status
+                    orderDate
+                    user {
+                        id
+                        name
+                    }
+                    product {
+                        id
+                        name
+                    }
+                    company {
+                        id
+                        name
+                    }
                 }
-                product {
-                    id
-                    name
-                }
-                company {
-                    id
-                    name
-                }
-            }
-        }`;
+            }`;
 
     const response = await request("http://localhost:4000")
       .post("/")
@@ -409,28 +411,28 @@ describe("GraphQL Query functionality", () => {
     });
   });
 
-  it("should verify relationships in the response", async () => {
+  it("should verify relationships for all orders in the response", async () => {
     const query = `
-        query {
-            orders {
-                id
-                totalAmount
-                status
-                orderDate
-                user {
+            query {
+                orders {
                     id
-                    name
+                    totalAmount
+                    status
+                    orderDate
+                    user {
+                        id
+                        name
+                    }
+                    product {
+                        id
+                        name
+                    }
+                    company {
+                        id
+                        name
+                    }
                 }
-                product {
-                    id
-                    name
-                }
-                company {
-                    id
-                    name
-                }
-            }
-        }`;
+            }`;
 
     const response = await request("http://localhost:4000")
       .post("/")
@@ -444,6 +446,94 @@ describe("GraphQL Query functionality", () => {
       expect(order.user.name).not.toBeNull();
       expect(order.product.name).not.toBeNull();
       expect(order.company.name).not.toBeNull();
+    });
+  });
+});
+
+describe("GraphQL Reviews functionality", () => {
+  it("should fetch all reviews with product and user details", async () => {
+    const query = `
+                query {
+                    reviews {
+                        id
+                        product {
+                            id
+                            name
+                        }
+                        user {
+                            id
+                            name
+                        }
+                        rating
+                        comment
+                    }
+                }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    const reviews = response.body.data.reviews;
+
+    expect(Array.isArray(reviews)).toBe(true);
+    expect(reviews.length).toBeGreaterThan(0);
+
+    reviews.forEach((review) => {
+      expect(review).toHaveProperty("id");
+      expect(review).toHaveProperty("product");
+      expect(review.product).toHaveProperty("id");
+      expect(review.product).toHaveProperty("name");
+      expect(review).toHaveProperty("user");
+      expect(review.user).toHaveProperty("id");
+      expect(review.user).toHaveProperty("name");
+      expect(review).toHaveProperty("rating");
+      expect(review).toHaveProperty("comment");
+    });
+  });
+
+  it("should validate specific review details", async () => {
+    const query = `
+                query {
+                    reviews {
+                        id
+                        product {
+                            id
+                            name
+                        }
+                        user {
+                            id
+                            name
+                        }
+                        rating
+                        comment
+                    }
+                }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+
+    const specificReview = response.body.data.reviews.find((review) => {
+      return review.id === "1";
+    });
+
+    expect(specificReview).toMatchObject({
+      id: "1",
+      product: {
+        id: "1",
+        name: "Smartphone",
+      },
+      user: {
+        id: "3",
+        name: "Olivia Brown",
+      },
+      rating: 4.5,
+      comment: "Amazing phone with great features!",
     });
   });
 });
