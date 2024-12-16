@@ -18,6 +18,8 @@ afterAll(async () => {
 });
 
 describe("GraphQL Product functionality", () => {
+  //Create Product
+
   it("should throw an error when a user that is not authenticated tries to create a product", async () => {
     const mutation = `
         mutation {
@@ -174,6 +176,8 @@ describe("GraphQL Product functionality", () => {
     expect(product.category).toHaveProperty("name");
   });
 
+  //Update Product
+
   it("should throw an error when a user that is not authenticated tries to update a product", async () => {
     const mutation = `
         mutation {
@@ -327,7 +331,7 @@ describe("GraphQL Product functionality", () => {
     expect(product).toHaveProperty("inStock", false);
   });
 
-  //Deletions
+  //Delete Product
 
   it("should throw an error when user is not authenticated for deleting a product", async () => {
     const mutation = `
