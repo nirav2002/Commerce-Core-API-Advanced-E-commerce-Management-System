@@ -16,7 +16,7 @@ afterAll(async () => {
   await new Promise((resolve) => serverInstance.close(resolve)); // Ensure the server closes cleanly
 });
 
-describe("GraphQL query functionality", () => {
+describe("GraphQL Query functionality", () => {
   it("should fetch all products without any filters (default pagination)", async () => {
     const query = `
         query {
@@ -159,5 +159,89 @@ describe("GraphQL query functionality", () => {
     expect(response.body.data.products.items).toHaveLength(0); //No products
     expect(response.body.data.products.prevPage).toBeNull();
     expect(response.body.data.products.nextPage).toBeNull();
+  });
+
+  it("should fetch all categories with their respective products", async () => {
+    const query = `
+        query {
+            categories {
+                id
+                name
+                description
+                products {
+                id
+                name
+                }
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.categories).toHaveLength(5); //All categories are returned
+    response.body.data.categories.forEach((category) => {
+      expect(category).toHaveProperty("id");
+      expect(category).toHaveProperty("name");
+      expect(category).toHaveProperty("description");
+      expect(category).toHaveProperty("products");
+      expect(Array.isArray(category.products)).toBe(true); // Products should be an array
+    });
+  });
+
+  it("should return an empty array for categories without products", async () => {
+    const query = `
+        query {
+            categories {
+                name
+                products {
+                name
+                }
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+
+    const categoryWithoutProducts = response.body.data.categories.find(
+      (category) => {
+        return category.name === "Books";
+      }
+    );
+
+    expect(categoryWithoutProducts.products).toEqual([]); //Books has no products
+  });
+
+  it("should validate specific category data", async () => {
+    const query = `
+        query {
+            categories {
+                id
+                name
+                description
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    const specificCategory = response.body.data.categories.find((category) => {
+      return category.name === "Kitchen";
+    });
+
+    expect(specificCategory).toMatchObject({
+      id: "4",
+      name: "Kitchen",
+      description: "Kitchen tools and supplies",
+    });
   });
 });
