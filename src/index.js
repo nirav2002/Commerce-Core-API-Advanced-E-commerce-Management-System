@@ -63,6 +63,11 @@ server.express.use(limiter);
 const startServer = (port = 4000) => {
   return new Promise((resolve) => {
     const serverInstance = server.start({ port }, () => {
+      const environmentMessage =
+        port === 4000
+          ? "Starting server on port 4000 for testing purposes"
+          : "Starting server on port 3000 for production application";
+      console.log(environmentMessage);
       logger.info(`Server is running on http://localhost:${port}`);
       resolve(serverInstance);
     });
