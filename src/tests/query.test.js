@@ -162,7 +162,7 @@ describe("GraphQL Query functionality", () => {
   });
 });
 
-describe("GraphQL Category Query functionality", () => {
+describe("GraphQL Category functionality", () => {
   it("should fetch all categories with their respective products", async () => {
     const query = `
         query {
@@ -248,7 +248,7 @@ describe("GraphQL Category Query functionality", () => {
   });
 });
 
-describe("GraphQL Users Query functionality", () => {
+describe("GraphQL Users functionality", () => {
   it("should fetch all users without any filters (default pagination)", async () => {
     const query = `
         query {
@@ -534,6 +534,68 @@ describe("GraphQL Reviews functionality", () => {
       },
       rating: 4.5,
       comment: "Amazing phone with great features!",
+    });
+  });
+});
+
+describe("GraphQL Company functionality", () => {
+  it("should fetch all companies without filters", async () => {
+    const query = `
+        query {
+          companies {
+            id
+            name
+            location
+            industry
+          }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    const companies = response.body.data.companies;
+
+    expect(Array.isArray(companies)).toBe(true);
+    expect(companies.length).toBeGreaterThan(0);
+
+    companies.forEach((company) => {
+      expect(company).toHaveProperty("id");
+      expect(company).toHaveProperty("name");
+      expect(company).toHaveProperty("location");
+      expect(company).toHaveProperty("industry");
+    });
+  });
+
+  it("should validate specific company details", async () => {
+    const query = `
+        query {
+          companies {
+            id
+            name
+            location
+            industry
+          }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+
+    const specificCompany = response.body.data.companies.find((company) => {
+      return company.id === "1";
+    });
+
+    expect(specificCompany).toMatchObject({
+      id: "1",
+      name: "InnoTech Ltd.",
+      location: "San Francisco",
+      industry: "Technology",
     });
   });
 });
