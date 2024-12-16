@@ -161,6 +161,8 @@ describe("GraphQL Query functionality", () => {
     expect(response.body.data.products.nextPage).toBeNull();
   });
 
+  //Categories
+
   it("should fetch all categories with their respective products", async () => {
     const query = `
         query {
@@ -243,5 +245,116 @@ describe("GraphQL Query functionality", () => {
       name: "Kitchen",
       description: "Kitchen tools and supplies",
     });
+  });
+
+  //Users
+
+  it("should fetch all users without any filters (default pagination)", async () => {
+    const query = `
+        query {
+            users {
+                items {
+                id
+                name
+                email
+                age
+                role
+                }
+                prevPage
+                nextPage
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.users.items).toHaveLength(5); //Default limit
+    expect(response.body.data.users.prevPage).toBeNull();
+    expect(response.body.data.users.nextPage).toBe(2);
+  });
+
+  it("should fetch users on page 2 with correct pagination", async () => {
+    const query = `
+        query {
+            users(page: 2) {
+                items {
+                id
+                name
+                email
+                age
+                role
+                }
+                prevPage
+                nextPage
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.users.prevPage).toBe(1);
+    expect(response.body.data.users.items.length).toBeGreaterThan(0);
+  });
+
+  it("should fetch users by name search (case insensitive)", async () => {
+    const query = `
+        query {
+            users(search: "Sophia") {
+                items {
+                id
+                name
+                email
+                age
+                role
+                }
+                prevPage
+                nextPage
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    const items = response.body.data.users.items;
+    expect(items.length).toBeGreaterThan(0);
+    items.forEach((user) => {
+      expect(user.name.toLowerCase()).toContain("sophia");
+    });
+  });
+
+  it("should return no users for unmatched filter criteria", async () => {
+    const query = `
+        query {
+            users(search: "abc") {
+                items {
+                id
+                name
+                email
+                age
+                role
+                }
+                prevPage
+                nextPage
+            }
+        }`;
+
+    const response = await request("http://localhost:4000")
+      .post("/")
+      .send({ query })
+      .set("Content-Type", "application/json");
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.users.items).toHaveLength(0);
+    expect(response.body.data.users.prevPage).toBeNull();
+    expect(response.body.data.users.nextPage).toBeNull();
   });
 });
