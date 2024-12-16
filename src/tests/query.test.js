@@ -16,7 +16,7 @@ afterAll(async () => {
   await new Promise((resolve) => serverInstance.close(resolve)); // Ensure the server closes cleanly
 });
 
-describe("GraphQL Query functionality", () => {
+describe("GraphQL Product functionality", () => {
   it("should fetch all products without any filters (default pagination)", async () => {
     const query = `
         query {
