@@ -3,7 +3,6 @@ const { startServer } = require("../../index"); // Import the function to start 
 const { PrismaClient } = require("@prisma/client");
 const { response } = require("express");
 const jwt = require("jsonwebtoken");
-const e = require("express");
 
 const prisma = new PrismaClient();
 let serverInstance;
