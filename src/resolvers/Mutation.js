@@ -601,6 +601,16 @@ const Mutation = {
         throw new Error("You do not have permission to create a user");
       }
 
+      const { email, name } = args.data;
+      if (!email) {
+        logger.warn("Email field is required for user creation");
+        throw new Error("Field 'email' is required");
+      }
+      if (!name) {
+        logger.warn("Name field is required for user creation");
+        throw new Error("Field 'name' is required");
+      }
+
       //To check if the email entered is unique or not
       const emailExists = await prisma.user.findUnique({
         where: {
