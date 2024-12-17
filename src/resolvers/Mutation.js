@@ -1027,39 +1027,41 @@ const Mutation = {
   },
 
   async updateOrder(parent, args, { prisma, pubsub, request, logger }, info) {
-    //Log the start of the process
+    // Log the start of the process
     logger.info("Starting order update process...");
 
     try {
-      //Extract and verify the token
+      // Extract and verify the token
       const user = verifyToken(request.headers.authorization);
 
-      //If no valid token is provided
+      // If no valid token is provided
       if (!user) {
         logger.warn("Authentication required. No valid token provided");
         throw new Error("Authentication required");
       }
 
-      //Converting IDs to integer
+      // Converting IDs to integer
       const orderId = parseInt(args.id, 10);
-      const userId = parseInt(args.data.userID, 10);
-      const productId = parseInt(args.data.productID, 10);
-      const companyId = parseInt(args.data.companyID, 10);
+      const userId = args.data.userID ? parseInt(args.data.userID, 10) : null;
+      const productId = args.data.productID
+        ? parseInt(args.data.productID, 10)
+        : null;
+      const companyId = args.data.companyID
+        ? parseInt(args.data.companyID, 10)
+        : null;
 
-      //Check whether the order exists or not
+      // Check whether the order exists or not
       const orderExists = await prisma.order.findUnique({
-        where: {
-          id: orderId, //Use the integer orderId
-        },
+        where: { id: orderId },
       });
 
-      //If order is not found
+      // If order is not found
       if (!orderExists) {
         logger.warn(`Order with ID ${orderId} not found`);
         throw new Error("Order not found");
       }
 
-      //Authorization: Only the user who created the order or an admin can update it
+      // Authorization: Only the user who created the order or an admin can update it
       if (orderExists.userId !== user.id && user.role !== "admin") {
         logger.warn(
           `Unauthorized attempt to update order with ID ${orderId} by ${user.id} (Role: ${user.role})`
@@ -1067,85 +1069,67 @@ const Mutation = {
         throw new Error("You do not have permission to update this order");
       }
 
-      //Validate new user ID if provided
-      if (args.data.userID) {
+      // Validate new user ID if provided
+      if (userId) {
         const userExists = await prisma.user.findUnique({
-          where: {
-            id: userId, //Use the integer userId
-          },
+          where: { id: userId },
         });
 
-        //If user does not exist
         if (!userExists) {
-          logger.warn(`Invalid user ID provided: ${userId}`);
-          throw new Error("Invalid user ID");
+          logger.warn(`User with ID ${userId} not found`);
+          throw new Error("User not found");
         }
       }
-      //Validate new product ID if provided
-      if (args.data.productID) {
+
+      // Validate new product ID if provided
+      if (productId) {
         const productExists = await prisma.product.findUnique({
-          where: {
-            id: productId, //Use the integer productId
-          },
+          where: { id: productId },
         });
 
-        //If product does not exist
         if (!productExists) {
-          logger.warn(`Invalid product ID provided: ${productId}`);
-          throw new Error("Invalid product ID");
+          logger.warn(`Product with ID ${productId} not found`);
+          throw new Error("Product not found");
         }
       }
 
-      //Validate new company ID if provided
-      if (args.data.companyID) {
+      // Validate new company ID if provided
+      if (companyId) {
         const companyExists = await prisma.company.findUnique({
-          where: {
-            id: companyId, //Use the integer companyId
-          },
+          where: { id: companyId },
         });
 
-        //If company does not exist
         if (!companyExists) {
-          logger.warn(`Invalid company ID provided: ${companyId}`);
-          throw new Error("Invalid company ID");
+          logger.warn(`Company with ID ${companyId} not found`);
+          throw new Error("Company not found");
         }
       }
 
-      //Update the order using Prisma
+      // Dynamically construct update data
+      const updateData = {
+        totalAmount: args.data.totalAmount,
+        status: args.data.status,
+        orderDate: args.data.orderDate,
+      };
+
+      if (userId) updateData.user = { connect: { id: userId } };
+      if (productId) updateData.product = { connect: { id: productId } };
+      if (companyId) updateData.company = { connect: { id: companyId } };
+
+      // Update the order using Prisma
       const updatedOrder = await prisma.order.update({
-        where: {
-          id: orderId, //Use the integer orderId
-        },
-        data: {
-          totalAmount: args.data.totalAmount,
-          status: args.data.status,
-          orderDate: args.data.orderDate,
-          user: {
-            connect: {
-              id: userId,
-            },
-          },
-          product: {
-            connect: {
-              id: productId,
-            },
-          },
-          company: {
-            connect: {
-              id: companyId,
-            },
-          },
-        },
+        where: { id: orderId },
+        data: updateData,
       });
 
-      //Log successful update
+      // Log successful update
       logger.info(
         `Order with ID ${orderId} updated successfully by ${user.id} (Role: ${
           user.role
         }). Updated fields: ${Object.keys(args.data).join(", ")}`
       );
 
-      //Publish the updated order to pubsub model
+      // Publish the updated order to pubsub model
       pubsub.publish("orderChannel", {
         order: {
           mutation: "UPDATED",
@@ -1183,8 +1167,13 @@ const Mutation = {
       }
 
       //Convert productID and userID to integers
-      const productId = parseInt(args.data.productID, 10);
-      const userId = parseInt(args.data.userID, 10);
+      const productId = Number(args.data.productID);
+      const userId = Number(args.data.userID);
+
+      if (isNaN(productId) || isNaN(userId)) {
+        logger.error("Invalid ID format. Expected Integer");
+        throw new Error("Product ID and User ID must be valid integers");
+      }
 
       //Validate if the product exists using Prisma
       const productExists = await prisma.product.findUnique({
@@ -1212,6 +1201,19 @@ const Mutation = {
         throw new Error("User not found");
       }
 
+      //Check if the user has already reviewed the product
+      const existingReview = await prisma.review.findFirst({
+        where: {
+          userId: userId,
+          productId: productId,
+        },
+      });
+
+      if (existingReview) {
+        logger.warn(`User ${userId} has already reviewed Product ${productId}`);
+        throw new Error("You have already reviewed this product");
+      }
+
       //Validate rating
       if (args.data.rating < 0 || args.data.rating > 5) {
         logger.warn(`Invalid rating value provided: ${args.data.rating}`);
@@ -1230,7 +1232,7 @@ const Mutation = {
           },
           user: {
             connect: {
-              id: userId, //Connecting to the existing user
+              id: parseInt(user.id, 10), //Connecting to the existing user
             },
           },
         },
