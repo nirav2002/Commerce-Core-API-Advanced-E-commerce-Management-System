@@ -1,6 +1,6 @@
-# GraphQL Practice Project 🚀
+# Commerce Core API: Advanced E-commerce Management System 🚀
 
-The **GraphQL Practice Project** is a fully functional backend application showcasing the power of **GraphQL APIs**. The project features a robust implementation of **CRUD operations**, **real-time subscriptions**, and **role-based authentication**. The system supports multiple entities, enabling users to interact with products, categories, users, orders, reviews, and companies.
+The **Commerce Core API** is a fully functional backend application showcasing the power of **GraphQL APIs**. The project features a robust implementation of **CRUD operations**, **real-time subscriptions**, and **role-based authentication**. The system supports multiple entities, enabling users to interact with products, categories, users, orders, reviews, and companies.
 
 Built using **Node.js**, **Prisma**, and **PostgreSQL**, this project demonstrates best practices in backend development, including advanced testing with **Jest** and efficient database management with **Prisma ORM**.
 
